@@ -1,3 +1,7 @@
 # Created by .ignore support plugin (hsz.mobi)
 .DS_Store
 .gitignore
+/service.js
+/find-service-broker.js
+/db_srv.js
+/config.json

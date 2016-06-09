@@ -5,13 +5,15 @@ var app = express();
 var fs = require('fs');
 var uuid = require('node-uuid');
 var request = require('request');
+var path = require('./config');
+
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-var tmp = '/Users/rayfang/tmp/';
-var seq = '/Users/rayfang/sequences/';
-var failed = '/Users/rayfang/failed/';
+var tmp = path.temp;
+var seq = path.seq;
+// var failed = '/Users/rayfang/failed/';
 
 var url = 'http://localhost:3000/api/sequence/insert';
 
