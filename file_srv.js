@@ -19,11 +19,11 @@ var url = 'http://localhost:3000/api/sequence/insert';
 
 const INTERVAL = 5000;
 
-var server = app.listen(process.env.PORT || 3001, function () {
+var server = app.listen(process.env.PORT || 3002, function () {
     log.debug("File server listening on port %s...", server.address().port);
 });
 
-setInterval(function() {
+// setInterval(function() {
 
     log.debug('scan directory');
     fs.readdir(tmp, function(err, items) {
@@ -39,40 +39,30 @@ setInterval(function() {
 
                     /** add code to extract JSON file and create the metadata object **/
 
+
                     // change to readLine
-                    var file = JSON.parse(fs.readFileSync('/Users/rayfang/sequences/sequence_1/test.json', 'utf8'));
-                    log.debug('read file: ',file);
+                    // var file = JSON.parse(fs.readFileSync('/Users/rayfang/sequences/sequence_1/test.json', 'utf8'));
+                    // log.debug('read file: ',file);
 
 
-                    // var date = new Date(2016, 5, 24);
+                    // var date = new Date(2016,  24);
 
                     var sequence = {
-                            
-                        location: {country: "United States", state: "CA", city: "Santa Clara"},
-                        keywords: ["Rain", "Urban", "Tunnel", "Bright", "Center_lane_only"],
-                        gps: {x: -122.02301460000001, y: 37.2638324},
-                        avg_speed: 60,
-                        capture_time: "2016-06-14",
+
+                        location: {country: "Italy", state: "Emilia-Romagna", city: "Parma"},
+                        keywords: ["Sunny", "Urban", "Bright"],
+                        gps: {x: 0, y: 0},
+                        avg_speed: 0,
+                        capture_time: "2016-06-07-12:08:01",
+                        frame_number: 8653,
                         usage: "Training",
-                        file_location: [{site: "us", root_path: "/vol1/SID1/"}, {site: "it", root_path: "/vol2/SID1/"}],
+                        file_location: [{site: "us", root_path: "/vol1/SuperCam-2016-06-07-12:08:01"}, {site: "it", root_path: ""}],
                         cameras: [
                             {
                                 name: "Front_Stereo",
                                 is_stereo: true,
-                                yuv: [{version: "v1", desc: "daytime"}, {version: "v2", desc: "darker"}],
-                                annotation: {annotation_density: 60, unique_id: 200, objects: [{class: "Vehicle", occurrence: 20}, {class: "Human", occurrence: 300}]}
-                            },
-                            {
-                                name: "Rear_Stereo",
-                                is_stereo: true,
-                                yuv: [{version: "v1", desc: "daytime"}, {version: "v2", desc: "darker"}],
-                                annotation: {annotation_density: 60, unique_id: 140, objects: [{class: "Vehicle", occurrence: 240}, {class: "Human", occurrence: 400}]}
-                            },
-                            {
-                                name: "Fish_Eye",
-                                is_stereo: false,
-                                yuv: [{version: "v1", desc: "daytime"}, {version: "v2", desc: "darker"}],
-                                annotation: {annotation_density: 60, unique_id: 100, objects: [{class: "Vehicle", occurrence: 20}, {class: "Human", occurrence: 200}]}
+                                yuv: [{version: "v1", desc: "daytime"}],
+                                annotation: {}
                             }
                         ]
                     };
@@ -110,17 +100,17 @@ setInterval(function() {
                                     log.debug('before rename dir: ', path);
 
                                     // rename folder by _id
-                                    fs.rename(tmp + path, seq + body._id, function (err) {
-                                        if(err){
-                                            log.error("rename error: " + err);
-                                            log.debug('dir: ', path);
-                                            // rollback database
-
-                                        } else{
-                                            log.debug("rename success");
-                                            log.debug('dir: ', path);
-                                        }
-                                    })
+                                    // fs.rename(tmp + path, seq + body._id, function (err) {
+                                    //     if(err){
+                                    //         log.error("rename error: " + err);
+                                    //         log.debug('dir: ', path);
+                                    //         // rollback database
+                                    //
+                                    //     } else{
+                                    //         log.debug("rename success");
+                                    //         log.debug('dir: ', path);
+                                    //     }
+                                    // })
                                 }
                                 else {
                                     log.error('update failed', response.statusCode);
@@ -135,7 +125,7 @@ setInterval(function() {
             }
         }
     });
-}, INTERVAL);
+// }, INTERVAL);
 
 
 

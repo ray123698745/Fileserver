@@ -1,4 +1,6 @@
 {
-  "temp": "/Users/rayfang/tmp/",
-  "seq": "/Users/rayfang/sequences/"
+  "temp": "/supercam/vol1/temp/",
+  "seq": "/supercam/vol1/",
+  "newArrived": "/supercam/vol1/new_arrived/",
+  "transfer_old": "/supercam/vol1/transfer_old/"
 }
