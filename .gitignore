@@ -5,6 +5,7 @@
 /find-service-broker.js
 /db_srv.js
 /config.json
+/decompress
 .idea/jsLibraryMappings.xml
 .idea/libraries/
 .idea/vcs.xml

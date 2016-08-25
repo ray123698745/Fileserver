@@ -7,7 +7,7 @@ host = ARGV[1]
 print command + "\n"
 
 a11_sdk = Net::Telnet::new("Host" => host,
-    "Timeout" => 10,
+    "Timeout" => 1000000,
     "Prompt" => /[$%#>] /)
 
 a11_sdk.login("root") { |c| print c }
