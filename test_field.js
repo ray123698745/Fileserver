@@ -73,7 +73,7 @@ rl.on('line', function(line){
 
         result.results[0].address_components.forEach(function (component) {
            component.types.forEach(function (type) {
-               // console.log('type:' + type);
+               console.log('type:' + type);
 
                if (type == "country") country = component.long_name;
                if (type == "administrative_area_level_1") state = component.long_name;
