@@ -207,7 +207,6 @@ queue.process('processSequence', function (job, done){
 
     log.debug('batchSequenceCount: ', batchSequenceCount);
 
-    // done(null, 'import_done');  // Todo: comment out this line
 
 
     if (batchSequenceCount == 1){
@@ -268,6 +267,7 @@ queue.process('processSequence', function (job, done){
     }
 
 
+    // done(null, 'import_done');  // Todo: comment out this line
 
 
 
@@ -307,8 +307,8 @@ queue.process('encode', function (job, done){
     }
 
 
-    var frameNum = seq.frame_number;  //Todo: Testing
-    // var frameNum = 200;
+    var frameNum = seq.frame_number;
+    // var frameNum = 100; //Todo: Testing
     var divideFrame = parseInt(frameNum / EVKNUM);
     var startFrame = 0;
     var doneCount = 0;
@@ -374,8 +374,6 @@ queue.process('encode', function (job, done){
         // var cmd = './raw_encode_check.sh /mnt/ssd_1;sleep 1; test_ituner -e ' + itunerPath + ';sleep 3;./raw_encode.sh ' + inputPath + ' ' + outputPath + ' ' + startFrame + ' ' + divideFrame + ' 1';
 
 
-        // log.debug('cmd: ', cmd);
-
         var child = spawn('ruby', ['telnet.rb', cmd, '192.168.240.' + ip]);
 
         // child.stdout.on('data',
@@ -405,79 +403,47 @@ queue.process('encode', function (job, done){
                     var yuvFile = seq.title + '_yuv_v' + versionNum + '_' + channelAbr;
 
                     cp(serverItunerPath, serverOutputPath);
-                    mv(serverOutputPath, yuvPath + yuvFile); // Todo: Testing
-                    cd(yuvPath);
+                    mv(serverOutputPath, yuvPath + yuvFile);
 
-                    exec('tar -cf ' + yuvFile + '.tar ' + yuvFile, {async:true}, function (code, stdout, stderr) {
+                    if (title == ""){
+                        title = seq.title;
+                        doneChannelCount++;
+                    } else {
 
-                        // log.debug("code: " + code);
-                        // log.debug("stdout: " + stdout);
-                        // log.debug("stderr: " + stderr);
-
-                        if (code == 0) {
-
-                            rm('-r', yuvPath + yuvFile); //Todo: to be tested
-
-                            if (title == ""){
-                                title = seq.title;
-                                doneChannelCount++;
-                            } else {
-
-                                if (title == seq.title){
-                                    doneChannelCount++;
-                                } else {
-                                    title = seq.title;
-                                    doneChannelCount = 1;
-                                }
-                            }
-
-                            // log.debug('doneChannelCount: ', doneChannelCount);
-
-                            // Update DB
-                            if (doneChannelCount != 0 && doneChannelCount%2 == 0){
-
-                                log.info('update DB');
-                                var query = {
-                                    condition: {_id: seq._id},
-                                    update: {$push: {
-                                        "cameras.0.yuv": {
-                                            "version": versionNum,
-                                            "desc": ituner
-                                        }
-                                    }},
-                                    options: {multi: false}
-                                };
-
-                                var options = {
-                                    url: updateURL,
-                                    json: true,
-                                    body: query,
-                                    timeout: 10000
-                                };
-
-                                // Todo: Testing
-                                request.post(options, function(error, response, body) {
-
-                                    if ( error ) {
-                                        log.error('Update DB failed', error);
-
-                                    } else {
-                                        if ( response.statusCode == 200 ) {
-                                            log.info('Update success', body);
-                                        }
-                                        else {
-                                            log.error('Update failed', response.statusCode);
-                                        }
-                                    }
-                                });
-                            }
+                        if (title == seq.title){
+                            doneChannelCount++;
                         } else {
-                            log.error("tar command failed. stderr: " + stderr);
-
+                            title = seq.title;
+                            doneChannelCount = 1;
                         }
-                    });  // Todo: Testing   change to async
+                    }
 
-                    cd(currentPath);
+                    var updateDB = false;
+
+                    if (doneChannelCount != 0 && doneChannelCount%2 == 0){
+
+                        var query = {
+                            condition: {title: seq.title},
+                            update: {$push: {
+                                "cameras.0.yuv": {
+                                    "version": versionNum,
+                                    "desc": ituner
+                                }
+                            }},
+                            options: {multi: false}
+                        };
+
+                        updateDB = true;
+                    }
+
+                    var tar_yuv_job = queue.create('tar_yuv', {
+                        yuvPath: yuvPath,
+                        yuvFile: yuvFile,
+                        updateDB: updateDB,
+                        query: query
+                    });
+
+                    tar_yuv_job.save();
 
 
                     done(null, 'encode_done');
@@ -494,6 +460,68 @@ queue.process('encode', function (job, done){
         ip++;
     }
 
+});
+
+queue.process('tar_yuv', function (job, done){
+
+    var yuvPath = job.data.yuvPath;
+    var yuvFile = job.data.yuvFile;
+    var updateDB = job.data.updateDB;
+    var query = job.data.query;
+
+    log.info('tar: ' + yuvFile);
+
+    cd(yuvPath);
+    exec('tar -cf ' + yuvFile + '.tar ' + yuvFile, {async:true}, function (code, stdout, stderr) {
+
+        // log.debug("code: " + code);
+        // log.debug("stdout: " + stdout);
+        // log.debug("stderr: " + stderr);
+
+        if (code == 0) {
+
+            log.info('tar completed: ' + yuvFile);
+
+            rm('-r', yuvPath + yuvFile);
+
+            // Update DB
+            if (updateDB){
+
+                log.info('update DB: ' + query.condition.title);
+
+                var options = {
+                    url: updateURL,
+                    json: true,
+                    body: query,
+                    timeout: 1000000
+                };
+
+                // Todo: Testing
+                request.post(options, function(error, response, body) {
+
+                    if ( error ) {
+                        log.error('Update DB failed', error);
+
+                    } else {
+                        if ( response.statusCode == 200 ) {
+                            log.info('Update success', body);
+                        }
+                        else {
+                            log.error('Update failed', response.statusCode);
+                        }
+                    }
+                });
+            }
+
+            done(null, 'tar_yuv_done');
+
+        } else {
+            log.error("tar command failed. stderr: " + stderr);
+
+        }
+    });
+
+    cd(currentPath);
 });
 
 
@@ -563,7 +591,6 @@ queue.on('job enqueue', function(id, type){
             if (err) return;
 
 
-
             job.remove(function(err){
                 if (err) throw err;
                 log.info('removed completed encode job #%d', job.id);
@@ -571,19 +598,19 @@ queue.on('job enqueue', function(id, type){
         });
     }
 
-    // if (result === 'update_db_done'){
-    //
-    //     kue.Job.get(id, function(err, job){
-    //         if (err) return;
-    //
-    //
-    //         job.remove(function(err){
-    //             if (err) throw err;
-    //             log.info('removed completed db job #%d', job.id);
-    //         });
-    //     });
-    //
-    // }
+    if (result === 'tar_yuv_done'){
+
+        kue.Job.get(id, function(err, job){
+            if (err) return;
+
+
+            job.remove(function(err){
+                if (err) throw err;
+                log.info('removed completed tar_yuv job #%d', job.id);
+            });
+        });
+
+    }
 
 
 });
