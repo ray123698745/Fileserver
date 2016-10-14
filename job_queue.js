@@ -1,23 +1,25 @@
 /**
  * Created by rayfang on 6/27/16.
  */
-var kue = require('kue');
-var queue = kue.createQueue();
-var spawn = require('child_process').spawn;
-var log = require('log4js').getLogger('job_queue');
-var express = require("express");
-var bodyParser = require("body-parser");
-var app = express();
-var fs = require('fs');
-var request = require('request');
+const kue = require('kue');
+const queue = kue.createQueue();
+const spawn = require('child_process').spawn;
+const log4js = require('log4js');
+log4js.configure('log_config.json', { reloadSecs: 300 });
+const log = log4js.getLogger('job_queue');
+const express = require("express");
+const bodyParser = require("body-parser");
+const app = express();
+const fs = require('fs');
+const request = require('request');
 require('shelljs/global');
-var telnet = require('telnet-client');
+const telnet = require('telnet-client');
 // var connection = new telnet();
-// var insertURL = 'http://localhost:3001/api/sequence/insert';
-var insertURL = 'http://localhost:3000/api/sequence/insert';
-
+var insertURL = 'http://localhost:3001/api/sequence/insert';
 var updateURL = 'http://localhost:3001/api/sequence/update';
-// var updateURL = 'http://localhost:3000/api/sequence/update';
+var batchURL = 'http://localhost:3001/api/annotation/insertBatch';
+
+
 
 
 app.use(bodyParser.json());
@@ -25,15 +27,16 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 
 var server = app.listen(process.env.PORT || 3004, function () {
-    log.debug("File server listening on port %s...", server.address().port);
+    log.info("File server listening on port %s...", server.address().port);
 });
 
 
 
-const EVKNUM = 5;
+const EVKNUM = 10;
 const SITE = 'us';
 
-var templatePath = "/supercam/vol1/annotation_template/";
+var templatePath = "/supercam/vol1/annotation/annotation_template/";
+var batchPath = "/supercam/vol1/annotation/tasks_batch/temp/";
 var sequence_ini_template = fs.readFileSync(templatePath + 'sequence.ini', 'utf-8');
 var sequence_mef_template = fs.readFileSync(templatePath + 'sequence.mef', 'utf-8');
 var session_template = fs.readFileSync(templatePath + 'sessions.ini', 'utf-8');
@@ -41,6 +44,13 @@ var currentPath = pwd();
 
 var title = "";
 var doneChannelCount = 0;
+var priority_text = {
+    "Vehicle": "",
+    "Pedestrian": "",
+    "Road": "",
+    "Road-with-curb": "",
+    "Lane": ""
+};
 
 
 var getRootPathBySite = function (siteArray) {
@@ -53,89 +63,214 @@ var getRootPathBySite = function (siteArray) {
 };
 
 
+var convert_ini = function (cali_ini) {
+
+    var cali_ini_1 = cali_ini.substring(0, cali_ini.search('OPTICAL CENTER') + 17);
+
+    var sub_cali_ini = cali_ini.substring(cali_ini.search('OPTICAL CENTER') + 17);
+    var opticalCenterX = sub_cali_ini.substring(0, sub_cali_ini.search(','));
+
+    sub_cali_ini = sub_cali_ini.substring(sub_cali_ini.search(',')+2);
+    var opticalCenterY = sub_cali_ini.substring(0, sub_cali_ini.search('\t'));
+    var cali_ini_2 = sub_cali_ini.substring(sub_cali_ini.search('\t'), sub_cali_ini.search('PIXEL FOCAL LENGTH'));
+
+    sub_cali_ini = sub_cali_ini.substring(sub_cali_ini.search('PIXEL FOCAL LENGTH')+21);
+    var focalLengthX = sub_cali_ini.substring(0, sub_cali_ini.search(','));
+
+    sub_cali_ini = sub_cali_ini.substring(sub_cali_ini.search(',')+2);
+    var focalLengthY = sub_cali_ini.substring(0, sub_cali_ini.search('\t'));
+    var cali_ini_3 = sub_cali_ini.substring(sub_cali_ini.search('\t'));
+
+    return cali_ini_1 + opticalCenterX/2 + ', ' + opticalCenterY/2 + cali_ini_2 + 'PIXEL FOCAL LENGTH = ' + focalLengthX/2 + ', ' + focalLengthY/2 + cali_ini_3;
+};
+
+
+var genTask = function (task, seq, annotationPath, h264, request) {
+
+    var taskPath = annotationPath + seq.title + '_' + task + '/';
+
+    mkdir(taskPath);
+
+    cp(templatePath + 'Classes.ini', taskPath);
+
+    var Annotate_ini = fs.readFileSync(templatePath + 'Annotate_' + task + '.ini', 'utf-8');
+    Annotate_ini = Annotate_ini.replace('@json', seq.title + '_' + request.category); // Todo: edit json file name
+
+
+    var cali_right_ini = fs.readFileSync('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/cali_data/Right.ini', 'utf-8');
+    var cali_left_ini = fs.readFileSync('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/L/cali_data/Left.ini', 'utf-8');
+
+
+    var sequence_ini = sequence_ini_template;
+    sequence_ini = sequence_ini.replace('@rightFile', h264);
+    sequence_ini = sequence_ini.replace('@rightCali', convert_ini(cali_right_ini));
+    sequence_ini = sequence_ini.replace('@leftCali', convert_ini(cali_left_ini));
+
+
+    var sequence_mef = sequence_mef_template.replace('@file', h264);
+    sequence_mef = sequence_mef.replace('@rate', 30/request.fps);
+
+
+    var session = session_template.replace(/@path/g, seq.title + '_' + task);
+
+
+    priority_text[task] = priority_text[task] + seq.title + '_' + task + ' ' + request.priority + '\n';
+
+
+    fs.writeFileSync(taskPath + 'Annotate.ini', Annotate_ini, 'utf-8');
+    fs.writeFileSync(taskPath + seq.title + '_' + task + '.ini', sequence_ini, 'utf-8');
+    fs.writeFileSync(taskPath + seq.title + '_' + task  + '.mef', sequence_mef, 'utf-8');
+    fs.writeFileSync(taskPath + 'sessions.ini', session, 'utf-8');
+
+};
+
+
 queue.process('processSequence', function (job, done){
 
 
-
     var seq = job.data.sequenceObj;
-    log.debug("Processing Import: " + seq.title);
+    var batchSequenceCount = job.data.batchSequenceCount;
+
+    log.info("Processing Import: " + seq.title);
 
 
     // Create annotation request package
+    var annotationPath = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/annotation/temp/';
+    // var annotationPath = '/supercam/vol1/annotation/testTemp/';
 
-    // var annotationPath = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/annotation/temp/';
-    // var h264 = seq.title + '_h264_R.mp4';
-    //
-    // mkdir(annotationPath);
-    //
-    // cp(templatePath + 'RECT_Right.blt', annotationPath);  // Calibration file will come with each sequence Todo: change the blt file name in sequence.ini
-    // cp('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/' + h264, annotationPath);
-    //
-    // seq.cameras[0].annotation.forEach(function(request){
-    //
-    //     var taskPath = annotationPath + seq.title + '_' + request.category + '/';
-    //
-    //     mkdir(taskPath);
-    //
-    //     cp(templatePath + 'Classes.ini', taskPath);
-    //     cp(templatePath + 'Annotate_' + request.category + '.ini', taskPath + 'Annotate.ini');
-    //
-    //
-    //     var sequence_ini = sequence_ini_template.replace('@file', h264);
-    //     var sequence_mef = sequence_mef_template.replace('@file', h264);
-    //     // sequence_mef = sequence_mef.replace('@num', seq.frame_number);
-    //     sequence_mef = sequence_mef.replace('@rate', 30/request.fps);
-    //
-    //     var session = session_template.replace(/@path/g, seq.title + '_' + request.category);
-    //
-    //
-    //     fs.writeFileSync(taskPath + seq.title + '_' + request.category + '.ini', sequence_ini, 'utf-8');
-    //     fs.writeFileSync(taskPath + seq.title + '_' + request.category + '.mef', sequence_mef, 'utf-8');
-    //     fs.writeFileSync(taskPath + 'sessions.ini', session, 'utf-8');
-    //
-    //
-    // });
-    //
-    // cd(annotationPath);
-    // exec('tar -czf ' + '../' + seq.title + '.tar.gz ' + '*');
-    // cd(currentPath);
-    // rm('-r', annotationPath);
-    //
-    //
-    // // Insert sequence to DB
-    //
-    // var options = {
-    //     url: insertURL,
-    //     json: true,
-    //     body: seq,
-    //     timeout: 2000
-    // };
+    var h264 = seq.title + '_h264_R.mp4';
 
-    // request.post(options, function(error, response, body) {
-    //     // log.debug('update path response', response, 'body', body, 'error', error);
-    //     // log.debug('body: ', body, 'error: ', error);
-    //
-    //     if ( error ) {
-    //         log.error('Insert DB failed', error);
-    //
-    //
-    //     }
-    //     else {
-    //         if ( response.statusCode == 200 ) {
-    //             log.debug('Insert success', body);
-    //             done(null, 'import_done');
-    //         }
-    //         else {
-    //             log.error('Insert failed', response.statusCode);
-    //         }
-    //     }
-    // });
+    mkdir(annotationPath);
+
+    cp('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/cali_data/RECT_Right.blt', annotationPath);  // Calibration file will come with each sequence Todo: change the blt file name in sequence.ini
+    cp('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/' + h264, annotationPath);
+
+    seq.cameras[0].annotation.forEach(function(request){
+
+        switch (request.category){
+            case "moving_object":
+                genTask("Vehicle", seq, annotationPath, h264, request);
+                genTask("Pedestrian", seq, annotationPath, h264, request);
+                break;
+            case "free_space":
+                genTask("Road", seq, annotationPath, h264, request);
+                genTask("Lane", seq, annotationPath, h264, request);
+                break;
+            case "free_space_with_curb":
+                genTask("Road-with-curb", seq, annotationPath, h264, request);
+                genTask("Lane", seq, annotationPath, h264, request);
+                break;
+        }
+
+    });
+
+    cd(annotationPath);
+    exec('tar -czf ' + '../' + seq.title + '.tar.gz ' + '*');
+
+    cp('../' + seq.title + '.tar.gz', batchPath);
+
+    cd(currentPath);
+    rm('-r', annotationPath);
 
 
-    // Todo: Delete unselected sequence and unfilteredSequence documents
+    // Insert sequence to DB
+
+    // Todo: testing
+    var options = {
+        url: insertURL,
+        json: true,
+        body: seq,
+        timeout: 10000
+    };
+
+    request.post(options, function(error, response, body) {
+        // log.debug('update path response', response, 'body', body, 'error', error);
+        // log.debug('body: ', body, 'error: ', error);
+
+        if ( error ) {
+            log.error('Insert DB failed', error);
 
 
-    done(null, 'import_done');  // Todo: comment out this line
+        }
+        else {
+            if ( response.statusCode == 200 ) {
+                log.debug('Insert success', body);
+                done(null, 'import_done');
+            }
+            else {
+                log.error('Insert failed', response.statusCode);
+            }
+        }
+    });
+
+
+
+    log.debug('batchSequenceCount: ', batchSequenceCount);
+
+    // done(null, 'import_done');  // Todo: comment out this line
+
+
+    if (batchSequenceCount == 1){
+        log.debug('tar whole batch');
+
+        var batchCreateTime = new Date().toISOString();
+        var batchName = batchCreateTime.substring(0, 19);
+        batchName = batchName.replace('T','-');
+        batchName = batchName.replace(/:/g, '');
+
+        touch(batchPath + 'priority.txt');
+        fs.writeFileSync(batchPath + 'priority.txt', priority_text["Vehicle"] + priority_text["Pedestrian"] + priority_text["Road"] + priority_text["Road-with-curb"] + priority_text["Lane"], 'utf-8');
+
+        priority_text = {
+            "Vehicle": "",
+            "Pedestrian": "",
+            "Road": "",
+            "Road-with-curb": "",
+            "Lane": ""
+        };
+
+        mkdir(batchPath + '../' + batchName);
+        mv(batchPath + '*', batchPath + '../' + batchName);
+
+
+        cd(batchPath + '../' + batchName);
+        exec('tar -czf ' + '../' + batchName + '.tar.gz ' + '*');
+        cd(currentPath);
+        rm('-r', batchPath + '../' + batchName);
+
+
+        var query = {
+            batchName: batchName,
+            batchCreateTime: batchCreateTime
+        };
+
+        var options = {
+            url: batchURL,
+            json: true,
+            body: query,
+            timeout: 10000
+        };
+
+        request.post(options, function(error, response, body) {
+
+            if ( error ) {
+                log.error('Insert batch failed', error);
+            } else {
+                if ( response.statusCode == 200 ) {
+                    log.debug('Insert batch success', body);
+                }
+                else {
+                    log.error('Insert batch failed', response.statusCode);
+                }
+            }
+        });
+
+    }
+
+
+
+
+
 
 });
 
@@ -143,8 +278,8 @@ queue.process('processSequence', function (job, done){
 
 queue.process('encode', function (job, done){
 
-    log.debug('Processing encode ' + job.data.sequenceObj.title + ' ' + job.data.channel);
-    log.debug("Start: " + new Date());
+    log.info('Processing encode ' + job.data.sequenceObj.title + ' ' + job.data.channel);
+    log.info("Start: " + new Date());
 
 
     var seq = job.data.sequenceObj;
@@ -172,8 +307,8 @@ queue.process('encode', function (job, done){
     }
 
 
-    var frameNum = seq.frame_number;
-    // var frameNum = 500;
+    var frameNum = seq.frame_number;  //Todo: Testing
+    // var frameNum = 200;
     var divideFrame = parseInt(frameNum / EVKNUM);
     var startFrame = 0;
     var doneCount = 0;
@@ -190,36 +325,37 @@ queue.process('encode', function (job, done){
 
         var versionNum = 1;
 
-        for (var i = 0; i < seq.keywords.length; i++) {
+        if (seq.keywords.length == 0) {
+            // Default ituner if no keyword match
+            ituner = '20161013_daytime.ini';
+        } else {
+            for (var i = 0; i < seq.keywords.length; i++) {
 
-            if (seq.keywords[i] == 'Back_lit') {
-                ituner = 'liso_v_42v2_3840_new_ce_tao_backlight_compressed.ini';
-                break;
-            }
+                if (seq.keywords[i] == 'Back_lit') {
+                    ituner = '20161013_backlit.ini';
+                    break;
+                }
 
-            if (seq.keywords[i] == 'Bright') {
-                ituner = 'liso_v_42v2_3840_new_ce_tao_day_compressed.ini';
-                break;
-            }
+                if (seq.keywords[i] == 'Night_with_street_light' || seq.keywords[i] == 'Night_without_street_light') {
+                    ituner = '20161013_nighttime_Br_LV2.ini';
+                    break;
+                }
 
-            if (seq.keywords[i] == 'Night_with_street_light' || seq.keywords[i] == 'Night_without_street_light') {
-                ituner = 'liso_v_42v2_3840_new_ce_tao_night_compressed.ini';
-                break;
+                // Default ituner if no keyword match
+                ituner = '20161013_daytime.ini';
             }
         }
+
+
     } else {
 
         var versionNum = 0;
 
         seq.cameras[0].yuv.forEach(function (yuvVersion) {
             if (yuvVersion.version > versionNum) versionNum = yuvVersion.version;
-            // log.debug('in forEach versionNum', versionNum);
-
         });
 
         versionNum++;
-        // log.debug('out forEach versionNum', versionNum);
-
         ituner = job.data.ituner;
     }
 
@@ -232,17 +368,15 @@ queue.process('encode', function (job, done){
         if (i == EVKNUM - 1)
             divideFrame = divideFrame + (frameNum % EVKNUM);
 
+        // Todo: change cmd to ./raw_encode.sh
+        var cmd = './raw_encode_check.sh /mnt/ssd_1;sleep 1; test_ituner -e ' + itunerPath + ';sleep 3;./raw_encode_tao.sh ' + inputPath + ' ' + outputPath + ' ' + startFrame + ' ' + divideFrame + ' 1';
 
-        // var cmd = './raw_encode.sh ' + inputPath + ' ' + outputPath + ' ' + startFrame + ' ' + divideFrame;
-        // var cmd = './raw_encode_with_ituner.sh ' + inputPath + ' ' + outputPath + ' ' + startFrame + ' ' + divideFrame + ' ' + itunerPath;
+        // var cmd = './raw_encode_check.sh /mnt/ssd_1;sleep 1; test_ituner -e ' + itunerPath + ';sleep 3;./raw_encode.sh ' + inputPath + ' ' + outputPath + ' ' + startFrame + ' ' + divideFrame + ' 1';
 
-        var cmd = 'test_ituner -e ' + itunerPath + ';sleep 5;./raw_encode.sh ' + inputPath + ' ' + outputPath + ' ' + startFrame + ' ' + divideFrame + ' 1';
 
         // log.debug('cmd: ', cmd);
-        // log.debug('ip: ', ip, 'startFrame: ', startFrame, ', divideFrame: ', divideFrame);
 
-        var child = spawn('ruby',
-            ['telnet.rb', cmd, '192.168.240.' + ip]);
+        var child = spawn('ruby', ['telnet.rb', cmd, '192.168.240.' + ip]);
 
         // child.stdout.on('data',
         //     function (data) {
@@ -252,12 +386,12 @@ queue.process('encode', function (job, done){
 
         child.stderr.on('data',
             function (data) {
-                log.debug('stderr: ' + data);
+                log.error('encode process stderr: ' + data);
             }
         );
 
         child.on('exit', function (exitCode) {
-            log.debug("Child exited with code: " + exitCode);
+            log.info("Child exited with code: " + exitCode);
 
             if (exitCode === 0) {
 
@@ -265,7 +399,7 @@ queue.process('encode', function (job, done){
 
                 if (doneCount == EVKNUM ) {
 
-                    log.debug("End: " + new Date());
+                    log.info("End: " + new Date());
 
 
                     var yuvFile = seq.title + '_yuv_v' + versionNum + '_' + channelAbr;
@@ -273,68 +407,85 @@ queue.process('encode', function (job, done){
                     cp(serverItunerPath, serverOutputPath);
                     mv(serverOutputPath, yuvPath + yuvFile); // Todo: Testing
                     cd(yuvPath);
-                    exec('tar -cf ' + yuvFile + '.tar ' + yuvFile);  // Todo: Testing   change to ansync
-                    cd(currentPath);
 
-                    // rm('-r', yuvPath + yuvFile);  // Todo: if no further process, then delete the folder
+                    exec('tar -cf ' + yuvFile + '.tar ' + yuvFile, {async:true}, function (code, stdout, stderr) {
 
-                    if (title == ""){
-                        title = seq.title;
-                        doneChannelCount++;
-                    } else {
+                        // log.debug("code: " + code);
+                        // log.debug("stdout: " + stdout);
+                        // log.debug("stderr: " + stderr);
 
-                        if (title == seq.title){
-                            doneChannelCount++;
-                        } else {
-                            title = seq.title;
-                            doneChannelCount = 1;
-                        }
-                    }
+                        if (code == 0) {
 
-                    // log.debug('doneChannelCount: ', doneChannelCount);
+                            rm('-r', yuvPath + yuvFile); //Todo: to be tested
 
-                    // Update DB
-                    if (doneChannelCount%2 == 0){
-
-                        log.debug('update DB');
-                        var query = {
-                            condition: {_id: seq._id},
-                            update: {$push: {
-                                "cameras.0.yuv": {
-                                    "version": versionNum,
-                                    "desc": ituner
-                                }
-                            }},
-                            options: {multi: false}
-                        };
-
-                        var options = {
-                            url: updateURL,
-                            json: true,
-                            body: query,
-                            timeout: 2000
-                        };
-
-                        // Todo: Testing
-                        request.post(options, function(error, response, body) {
-
-                            if ( error ) {
-                                log.error('Update DB failed', error);
-
+                            if (title == ""){
+                                title = seq.title;
+                                doneChannelCount++;
                             } else {
-                                if ( response.statusCode == 200 ) {
-                                    log.debug('Update success', body);
-                                }
-                                else {
-                                    log.error('Update failed', response.statusCode);
+
+                                if (title == seq.title){
+                                    doneChannelCount++;
+                                } else {
+                                    title = seq.title;
+                                    doneChannelCount = 1;
                                 }
                             }
-                        });
-                    }
+
+                            // log.debug('doneChannelCount: ', doneChannelCount);
+
+                            // Update DB
+                            if (doneChannelCount != 0 && doneChannelCount%2 == 0){
+
+                                log.info('update DB');
+                                var query = {
+                                    condition: {_id: seq._id},
+                                    update: {$push: {
+                                        "cameras.0.yuv": {
+                                            "version": versionNum,
+                                            "desc": ituner
+                                        }
+                                    }},
+                                    options: {multi: false}
+                                };
+
+                                var options = {
+                                    url: updateURL,
+                                    json: true,
+                                    body: query,
+                                    timeout: 10000
+                                };
+
+                                // Todo: Testing
+                                request.post(options, function(error, response, body) {
+
+                                    if ( error ) {
+                                        log.error('Update DB failed', error);
+
+                                    } else {
+                                        if ( response.statusCode == 200 ) {
+                                            log.info('Update success', body);
+                                        }
+                                        else {
+                                            log.error('Update failed', response.statusCode);
+                                        }
+                                    }
+                                });
+                            }
+                        } else {
+                            log.error("tar command failed. stderr: " + stderr);
+
+                        }
+                    });  // Todo: Testing   change to async
+
+                    cd(currentPath);
 
 
                     done(null, 'encode_done');
                 }
+            } else {
+                log.error("encode failed with code: " + exitCode);
+
+
             }
 
         });
@@ -349,7 +500,7 @@ queue.process('encode', function (job, done){
 
 queue.on('job enqueue', function(id, type){
 
-    log.debug('Job %s got queued of type %s', id, type );
+    log.info('Job %s got queued of type %s', id, type );
 
 }).on('job complete', function(id, result){
 
@@ -367,7 +518,7 @@ queue.on('job enqueue', function(id, type){
 
             job.remove(function(err){
                 if (err) throw err;
-                console.log('removed completed import job #%d', job.id);
+                log.info('removed completed import job #%d', job.id);
             });
 
         });
@@ -399,7 +550,7 @@ queue.on('job enqueue', function(id, type){
 
             job.remove(function(err){
                 if (err) throw err;
-                console.log('removed completed decompress job #%d', job.id);
+                log.info('removed completed decompress job #%d', job.id);
             });
 
         });
@@ -415,7 +566,7 @@ queue.on('job enqueue', function(id, type){
 
             job.remove(function(err){
                 if (err) throw err;
-                console.log('removed completed encode job #%d', job.id);
+                log.info('removed completed encode job #%d', job.id);
             });
         });
     }
@@ -428,7 +579,7 @@ queue.on('job enqueue', function(id, type){
     //
     //         job.remove(function(err){
     //             if (err) throw err;
-    //             console.log('removed completed db job #%d', job.id);
+    //             log.info('removed completed db job #%d', job.id);
     //         });
     //     });
     //

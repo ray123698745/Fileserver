@@ -11,6 +11,7 @@
   "dependencies": {
     "body-parser": "^1.15.1",
     "express": "^4.13.4",
+    "ini": "^1.3.4",
     "kue": "^0.11.1",
     "log4js": "^0.6.36",
     "node-targz": "^0.1.2",
