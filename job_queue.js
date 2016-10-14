@@ -114,7 +114,7 @@ var genTask = function (task, seq, annotationPath, h264, request) {
     var session = session_template.replace(/@path/g, seq.title + '_' + task);
 
 
-    priority_text[task] = priority_text[task] + seq.title + '_' + task + ' ' + request.priority + '\n';
+    priority_text[task] = priority_text[task] + seq.title + '_' + task + ' ' + request.priority + ' ' + request.fps + '\n';
 
 
     fs.writeFileSync(taskPath + 'Annotate.ini', Annotate_ini, 'utf-8');
