@@ -12,25 +12,147 @@ log4js.configure('log_config.json', { reloadSecs: 300 });
 const log = log4js.getLogger('test_field');
 require('shelljs/global');
 
-var batchPath = "/supercam/vol1/annotation/tasks_batch/temp/";
+
+var inputPath = '/home/cjfang/Fileserver-dev/yuv_test/org/';
+var outputPath = '/home/cjfang/Fileserver-dev/yuv_test/resample/';
+var width = 640;
+var height = 480;
+var frameNum = 10 - 1;
+
+var cmd = './supercam_convert.tcsh ' + inputPath + ' ' + outputPath + ' ' + width + ' ' + height + ' ' + frameNum;
+
+exec(cmd, {async:true}, function (code, stdout, stderr) {
+
+    if (code == 0)
+        log.debug('Done!');
+
+});
 
 
 
 
-var statFile = JSON.parse(fs.readFileSync('/supercam/vol1/16-08-02-160759-it/Front_Stereo/annotation/moving_object_v1/16-08-02-160759-it_moving_object_stat.json', 'utf-8'));
 
-var set_obj = {};
-var classes_key = 'test_obj';
-set_obj[classes_key] = [];
 
-for (var i = 0; i < statFile.class_count.length; i++){
 
-    set_obj[classes_key][i] = [];
-    set_obj[classes_key][i][0] = statFile.class_count[i][0];
-    set_obj[classes_key][i][1] = statFile.class_count[i][1];
-}
 
-log.debug("staeFile: " + statFile.class_count[0][0]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// var batchPath = "/supercam/vol1/annotation/tasks_batch/temp/";
+//
+//
+//
+
+//
+// var queries = [];
+//
+//
+// for (var i = 0; i < 62; i++){
+//
+//     queries.push(i);
+// }
+//
+// var batchSequenceCount = queries.length;
+// var parts = 1;
+// var remains = batchSequenceCount;
+//
+// if(queries.length > 30){
+//     parts = parseInt(queries.length / 30)+1;
+//     remains = queries.length % 30;
+//     batchSequenceCount = 30;
+// }
+//
+//
+// for (var i = 0; i < parts; i++){
+//
+//     if (i == parts-1) batchSequenceCount = remains;
+//
+//     for (var j = 0; j < batchSequenceCount; j++){
+//
+//         log.debug("queries[j]: " + queries[j+(30*i)]);
+//
+//         // if (parts > 1){
+//         //
+//         //
+//         // } else {
+//         //
+//         //     log.debug("queries[j]: " + queries[j]);
+//         // }
+//
+//
+//         log.debug("batchSequenceCount: " + (batchSequenceCount - j));
+//     }
+// }
+
+//
+// batchSequenceCount = queries.length;
+//
+// for (var j = 0; j < queries.length; j++){
+//
+//     log.debug("queries[j]: " + queries[j]);
+//
+//
+//     log.debug("batchSequenceCount: " + (batchSequenceCount - j));
+//
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+// var statFile = JSON.parse(fs.readFileSync('/supercam/vol1/16-08-02-160759-it/Front_Stereo/annotation/moving_object_v1/16-08-02-160759-it_moving_object_stat.json', 'utf-8'));
+//
+// var set_obj = {};
+// var classes_key = 'test_obj';
+// set_obj[classes_key] = [];
+//
+// for (var i = 0; i < statFile.class_count.length; i++){
+//
+//     set_obj[classes_key][i] = [];
+//     set_obj[classes_key][i][0] = statFile.class_count[i][0];
+//     set_obj[classes_key][i][1] = statFile.class_count[i][1];
+// }
+//
+// log.debug("staeFile: " + statFile.class_count[0][0]);
 
 
 

@@ -138,7 +138,7 @@ function parseSensor(seq, done) {
 
         //todo: testing-- change -longitude
         var reverseGeocodeParams = {
-            "latlng":        latitude + "," + -longitude,
+            "latlng":        latitude + "," + longitude,
             "result_type":   "country|administrative_area_level_1|locality",
             "language":      "en",
             "location_type": "APPROXIMATE"
