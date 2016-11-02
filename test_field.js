@@ -13,19 +13,33 @@ const log = log4js.getLogger('test_field');
 require('shelljs/global');
 
 
-var inputPath = '/home/cjfang/Fileserver-dev/yuv_test/org/';
-var outputPath = '/home/cjfang/Fileserver-dev/yuv_test/resample/';
-var width = 640;
-var height = 480;
-var frameNum = 10 - 1;
 
-var cmd = './supercam_convert.tcsh ' + inputPath + ' ' + outputPath + ' ' + width + ' ' + height + ' ' + frameNum;
 
-exec(cmd, {async:true}, function (code, stdout, stderr) {
 
-    if (code == 0)
-        log.debug('Done!');
+// mv('/supercam/vol1/new_arrived/L/' + 'SuperCam-2016-10-15-21:30:35' + '/cali_data/calib3.ini', '/supercam/vol1/new_arrived/L/' + 'SuperCam-2016-10-15-21:30:35' + '/cali_data/Left.ini')
 
+
+// var new_sequence = ls('/supercam/vol1/new_arrived/L');
+
+fs.readdir('/supercam/vol1/temp_new', function(err, seqs) {
+    if (err){
+        log.error(err);
+    } else {
+        log.debug(seqs);
+
+        seqs.forEach(function(seq) {
+
+            if (seq.charAt(0) == '1'){
+
+                cp('/supercam/vol1/test_field/Left.ini', '/supercam/vol1/temp_new/' + seq + '/Front_Stereo/L/cali_data/Left.ini');
+                cp('/supercam/vol1/test_field/Right.ini', '/supercam/vol1/temp_new/' + seq + '/Front_Stereo/R/cali_data/Right.ini');
+
+            }
+        });
+
+        log.debug('done!');
+
+    }
 });
 
 
@@ -49,6 +63,26 @@ exec(cmd, {async:true}, function (code, stdout, stderr) {
 
 
 
+
+
+
+
+
+
+// var inputPath = '/home/cjfang/Fileserver-dev/yuv_test/org/';
+// var outputPath = '/home/cjfang/Fileserver-dev/yuv_test/resample/';
+// var width = 640;
+// var height = 480;
+// var frameNum = 10 - 1;
+//
+// var cmd = './supercam_convert.tcsh ' + inputPath + ' ' + outputPath + ' ' + width + ' ' + height + ' ' + frameNum;
+//
+// exec(cmd, {async:true}, function (code, stdout, stderr) {
+//
+//     if (code == 0)
+//         log.debug('Done!');
+//
+// });
 
 
 

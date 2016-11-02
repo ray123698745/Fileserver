@@ -104,7 +104,10 @@ var genTask = function (task, seq, annotationPath, h264, request) {
     var sequence_ini = sequence_ini_template;
     sequence_ini = sequence_ini.replace('@rightFile', h264);
     sequence_ini = sequence_ini.replace('@rightCali', convert_ini(cali_right_ini));
+    sequence_ini = sequence_ini.replace('@rightRECT', '$INPUT_DIR/RECT_Right.blt');
     sequence_ini = sequence_ini.replace('@leftCali', convert_ini(cali_left_ini));
+    sequence_ini = sequence_ini.replace('@leftRECT', '$INPUT_DIR/RECT_Left.blt');
+
 
 
     var sequence_mef = sequence_mef_template.replace('@file', h264);
