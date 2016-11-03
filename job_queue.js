@@ -340,7 +340,7 @@ queue.process('encode', function (job, done){
                 }
 
                 if (seq.keywords[i] == 'Night_with_street_light' || seq.keywords[i] == 'Night_without_street_light') {
-                    ituner = '20161013_nighttime_Br_LV2.ini';
+                    ituner = '20161025_nighttime_Br_LV2_Contrast.ini';
                     break;
                 }
 
