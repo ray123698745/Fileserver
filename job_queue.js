@@ -183,7 +183,7 @@ queue.process('processSequence', function (job, done){
         url: insertURL,
         json: true,
         body: seq,
-        timeout: 10000
+        timeout: 1000000
     };
 
     request.post(options, function(error, response, body) {
@@ -250,7 +250,7 @@ queue.process('processSequence', function (job, done){
             url: batchURL,
             json: true,
             body: query,
-            timeout: 10000
+            timeout: 1000000
         };
 
         request.post(options, function(error, response, body) {

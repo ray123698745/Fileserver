@@ -170,7 +170,7 @@ function parseSensor(seq, done) {
                 var param = {
                     seq: seq,
                     latitude: latitude,
-                    longitude: -longitude,
+                    longitude: longitude,
                     country: country,
                     state: state,
                     city: city,

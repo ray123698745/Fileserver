@@ -15,32 +15,146 @@ require('shelljs/global');
 
 
 
+var version_number = 2;
+var uploadTime = "2016-11-03T04:57:21.204Z";
+var comments = "new comment!";
 
-// mv('/supercam/vol1/new_arrived/L/' + 'SuperCam-2016-10-15-21:30:35' + '/cali_data/calib3.ini', '/supercam/vol1/new_arrived/L/' + 'SuperCam-2016-10-15-21:30:35' + '/cali_data/Left.ini')
+var jsonFile = fs.readFileSync('/supercam/vol1/test_field/old_json.json', 'utf-8');
 
 
-// var new_sequence = ls('/supercam/vol1/new_arrived/L');
 
-fs.readdir('/supercam/vol1/temp_new', function(err, seqs) {
-    if (err){
-        log.error(err);
-    } else {
-        log.debug(seqs);
+if (jsonFile.search('\"metadata\"') != -1){
+    var jsonObj = JSON.parse(jsonFile);
 
-        seqs.forEach(function(seq) {
+    jsonObj.metadata["annotation-version"] = version_number;
+    jsonObj.metadata["upload_time"] = uploadTime;
 
-            if (seq.charAt(0) == '1'){
-
-                cp('/supercam/vol1/test_field/Left.ini', '/supercam/vol1/temp_new/' + seq + '/Front_Stereo/L/cali_data/Left.ini');
-                cp('/supercam/vol1/test_field/Right.ini', '/supercam/vol1/temp_new/' + seq + '/Front_Stereo/R/cali_data/Right.ini');
-
-            }
-        });
-
-        log.debug('done!');
-
+    if(!jsonObj.metadata.comments.v1){
+        var tempComment = jsonObj.metadata.comments;
+        jsonObj.metadata.comments = {};
+        var tempKey = 'v' + (version_number-1);
+        jsonObj.metadata.comments[tempKey] = tempComment
     }
-});
+    var versionKey = 'v' + version_number;
+    jsonObj.metadata.comments[versionKey] = comments;
+
+
+    log.debug('jsonObj: ', jsonObj.metadata);
+}
+
+// var metadataPos = jsonFile.search('{')+1;
+//
+// var metadata = '\n \"metadata\":\n {\n  \"annotation-version\":\"' + version_number + '\",\n  ' + '\"upload_time\":\"' + uploadTime + '\",\n  ' + '\"comments\":\"' + comments + '\",\n  ' + '\"fps\":\"' + fps + '\"\n },';
+//
+// var addMetadata = jsonFile.substring(0, metadataPos) + metadata + jsonFile.substring(metadataPos);
+//
+
+var jsonResult = JSON.stringify(jsonObj, null, 1);
+
+fs.writeFileSync('/supercam/vol1/test_field/json_back.json', jsonResult, 'utf-8');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Todo: read & import keyword from csv
+var keyArr = ["Sunny", "Rain", "Cloudy", "Snow", "Hail", "Bright", "Indoor", "Shadow", "Night_with_street_light",  "Night_without_street_light", "Dusk", "Dawn", "Back_lit", "Tunnel"];
+//
+// var seqObj = {};
+//
+// var rl = readline.createInterface({
+//
+//     input: fs.createReadStream('/supercam/vol1/test_field/sequence_tag.csv')
+// });
+//
+//
+//
+// rl.on('line', function(line){
+//
+//     if(line.charAt(0) == 'S'){
+//         // log.debug(line);
+//
+//         var title = line.substring(0, 28);
+//         log.debug('title: ', title);
+//
+//         var content = line.substring(29);
+//         content = content.replace(/,/g, "");
+//
+//         // log.debug('content: ', content);
+//
+//         var tempArr = [];
+//
+//         for(var i = 0; i < content.length; i++){
+//             if (content[i] == 1)
+//                 tempArr.push(keyArr[i]);
+//         }
+//
+//         log.debug('tempArr: ', tempArr);
+//
+//         seqObj[title] = tempArr;
+//     }
+//
+//
+// }).on('close', function () {
+//     log.debug('seqObj: ', seqObj);
+//
+//     log.debug('closed');
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// fs.readdir('/supercam/vol1/new_arrived/L', function(err, seqs) {
+//     if (err){
+//         log.error(err);
+//     } else {
+//         log.debug(seqs);
+//
+//         seqs.forEach(function(seq) {
+//
+//             if (seq.charAt(0) == 'S'){
+//
+//                 cp('/supercam/vol1/test_field/Right.ini', '/supercam/vol1/new_arrived/R/' + seq + '/cali_data/Right.ini');
+//
+//             }
+//         });
+//
+//         log.debug('done!');
+//
+//     }
+// });
 
 
 
