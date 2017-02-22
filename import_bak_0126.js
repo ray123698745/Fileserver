@@ -1,11 +1,23 @@
 /**
- * Created by rayfang on 6/27/16.
+ * Created by cjfang on 1/26/17.
  */
-var queueSwitch = {
-    decompress: false,
-    dewarp: false,
-    cat: false,
-    encode_HEVC: false,
+/**
+ * Created by cjfang on 7/25/16.
+ */
+
+var importSwitch = {
+    integrityCheck: true,
+    parseSensor: true,
+    country: 'Taiwan',
+    parseSensorCallback: true,
+    genThumb: true,
+    setupFolder: true,
+    parseMeta: true,
+    insertDB: true,
+    decompress: true,
+    dewarp: true,
+    cat: true,
+    encode_HEVC: true,
     genAnnotation: true
 };
 
@@ -19,36 +31,33 @@ const queue = kue.createQueue({
     }
 });
 const spawn = require('child_process').spawn;
-const log4js = require('log4js');
-log4js.configure('log_config.json', { reloadSecs: 300 });
-const log = log4js.getLogger('job_queue');
 const express = require("express");
 const bodyParser = require("body-parser");
+const log4js = require('log4js');
+log4js.configure('log_config.json', { reloadSecs: 300 });
+const log = log4js.getLogger('import');
 const app = express();
 const fs = require('fs');
 const request = require('request');
+const config = require('./config');
+const readline = require('readline');
+const GoogleMapsAPI = require('googlemaps');
 require('shelljs/global');
-const telnet = require('telnet-client');
-// var connection = new telnet();
-var insertURL = 'http://10.1.3.32:3001/api/sequence/insert';
-var updateURL = 'http://10.1.3.32:3001/api/sequence/update';
-var batchURL = 'http://10.1.3.32:3001/api/annotation/insertBatch';
-
-
 
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+var newArrived = config.newArrived;
+var seqRoot = config.seq;
+var insertURL = config.insertURL;
+var updateURL = config.updateURL;
+var batchURL = config.batchURL;
+var csvPath = config.csvPath;
+var keyArr = config.keyArr;
+var countryCode = config.countryCode;
 
-var server = app.listen(process.env.PORT || 3004, function () {
-    log.info("File server listening on port %s...", server.address().port);
-});
-
-
-
-const EVKNUM = 10;
-const THREADS = 2;
+const THREADS = 1;
 const SITE = 'us';
 
 var templatePath = "/supercam/vol1/annotation/annotation_template/";
@@ -57,9 +66,9 @@ var sequence_ini_template = fs.readFileSync(templatePath + 'sequence.ini', 'utf-
 var sequence_mef_template = fs.readFileSync(templatePath + 'sequence.mef', 'utf-8');
 var session_template = fs.readFileSync(templatePath + 'sessions.ini', 'utf-8');
 var currentPath = pwd();
-
-var title = "";
-var doneChannelCount = 0;
+// var curSeqCount = 0;
+// var batchAnnCount = 0;
+// var annRemains = 0;
 var priority_text = {
     "Vehicle": "",
     "Pedestrian": "",
@@ -67,6 +76,24 @@ var priority_text = {
     "Road-with-curb": "",
     "Lane": ""
 };
+
+var publicConfig = {
+    key: 'AIzaSyBKazcMqdk5t0mJcyv7lroFEKtLthpFaLg',
+    stagger_time:       1000, // for elevationPath
+    encode_polylines:   false,
+    secure:             true // use https
+    // proxy:              'http://127.0.0.1:9999' // optional, set a proxy for HTTP requests
+};
+var gmAPI = new GoogleMapsAPI(publicConfig);
+
+var server = app.listen(process.env.PORT || 3003, function () {
+    log.info("File server listening on port %s...", server.address().port);
+});
+
+var allKeyword = [];
+
+// genKeywords();
+
 
 var getRootPathBySite = function (siteArray) {
 
@@ -78,26 +105,460 @@ var getRootPathBySite = function (siteArray) {
 };
 
 
-var convert_ini = function (cali_ini) {
+function genKeywords() {
 
-    var cali_ini_1 = cali_ini.substring(0, cali_ini.search('OPTICAL CENTER') + 17);
+    var rl = readline.createInterface({
+        terminal: false,
+        input: fs.createReadStream(csvPath)
+    });
 
-    var sub_cali_ini = cali_ini.substring(cali_ini.search('OPTICAL CENTER') + 17);
-    var opticalCenterX = sub_cali_ini.substring(0, sub_cali_ini.search(','));
+    rl.on('line', function(line){
 
-    sub_cali_ini = sub_cali_ini.substring(sub_cali_ini.search(',')+2);
-    var opticalCenterY = sub_cali_ini.substring(0, sub_cali_ini.search('\t'));
-    var cali_ini_2 = sub_cali_ini.substring(sub_cali_ini.search('\t'), sub_cali_ini.search('PIXEL FOCAL LENGTH'));
+        if(line.charAt(0) == 'S'){
 
-    sub_cali_ini = sub_cali_ini.substring(sub_cali_ini.search('PIXEL FOCAL LENGTH')+21);
-    var focalLengthX = sub_cali_ini.substring(0, sub_cali_ini.search(','));
+            var title = line.substring(0, 28);
+            var parsedTitle = title.substring(11);
+            parsedTitle = parsedTitle.replace(/:/g, "");
+            parsedTitle = parsedTitle + "-" + countryCode;
 
-    sub_cali_ini = sub_cali_ini.substring(sub_cali_ini.search(',')+2);
-    var focalLengthY = sub_cali_ini.substring(0, sub_cali_ini.search('\t'));
-    var cali_ini_3 = sub_cali_ini.substring(sub_cali_ini.search('\t'));
+            var content = line.substring(29);
+            content = content.replace(/,/g, "");
 
-    return cali_ini_1 + opticalCenterX/2 + ', ' + opticalCenterY/2 + cali_ini_2 + 'PIXEL FOCAL LENGTH = ' + focalLengthX/2 + ', ' + focalLengthY/2 + cali_ini_3;
-};
+            var tempArr = [];
+
+            for(var i = 0; i < keyArr.length; i++){
+                if (content[i] == 1)
+                    tempArr.push(keyArr[i]);
+            }
+
+            allKeyword.push({
+                title: parsedTitle,
+                keywords: tempArr
+            });
+
+        }
+
+
+    }).on('close', function () {
+
+        log.debug('closed');
+
+        integrityCheck();
+    });
+
+}
+
+function integrityCheck() {
+
+    fs.readdir(newArrived + "L/", function(err, seqs) {
+        if (err){
+            log.error(err);
+        } else {
+            log.debug(seqs);
+
+            var batchAnnCount = parseInt(seqs.length / 30);
+            var annRemains = seqs.length % 30;
+
+            seqs.forEach(function(seq){
+
+                if (seq.charAt(0) == 'S'){
+
+                    // if (importSwitch.integrityCheck){
+                    if (false){
+
+                        // Check file integrity
+                        var exitCodeL = exec('./test_folder_gen.sh ' + newArrived + "L/" + seq).code;
+                        var exitCodeR = exec('./test_folder_gen.sh ' + newArrived + "R/" + seq).code;
+
+                        if (exitCodeL == 0 && exitCodeR == 0
+                            && ls(newArrived + "L/" + seq + "/*.raw").length == ls(newArrived + "R/" + seq + "/*.raw").length
+                            && ls(newArrived + "L/" + seq + "/OtherSensors*/*.ini").length > 0
+                            && ls(newArrived + "L/" + seq + "/OtherSensors*/*.mef").length > 0
+                            && ls(newArrived + "L/" + seq + "/cali_data/Left.ini").length > 0
+                            && ls(newArrived + "R/" + seq + "/cali_data/Right.ini").length > 0)
+                        {
+
+                            log.info('Import: ' + seq);
+
+                            var import_new_job = queue.create('import_new', {
+                                seq: seq,
+                                allKeyword :allKeyword,
+                                batchAnnCount: batchAnnCount,
+                                annRemains: annRemains
+                            });
+
+                            import_new_job.save();
+
+                        } else {
+                            log.error('Import: ' + seq + ' failed!');
+                        }
+                    } else {
+                        log.info('Import: ' + seq);
+
+                        var import_new_job = queue.create('import_new', {
+                            seq: seq,
+                            allKeyword :allKeyword,
+                            batchAnnCount: batchAnnCount,
+                            annRemains: annRemains
+
+                        });
+
+                        import_new_job.save();
+                    }
+
+
+                }
+
+            });
+        }
+
+    });
+}
+
+
+queue.process('import_new', function (job, done){
+
+    parseSensor(job.data.seq, done, job.data.allKeyword, job.data.batchAnnCount, job.data.annRemains);
+
+});
+
+
+function parseSensor(seq, done, allKeyword, batchAnnCount, annRemains) {
+
+    if (importSwitch.parseSensor){
+        var fileName =  ls(newArrived + 'R/' + seq + '/OtherSensors*/*.mef');
+
+        if (fileName.length == 0){
+            log.error(seq +  " import failed: No OtherSensors");
+        }
+        var isClosed = false;
+
+        var rl = readline.createInterface({
+            terminal: false,
+            input: fs.createReadStream(fileName[0])
+        });
+
+        var latitudePos = 0;
+        var longitudePos = 0;
+        var altitudePos = 0;
+        var latitude = 0;
+        var longitude = 0;
+        var country = '';
+        var state = '';
+        var city = '';
+
+        rl.on('line', function(line){
+
+            latitudePos = line.search('latitude');
+            longitudePos = line.search(',longitude');
+            altitudePos = line.search(',altitude');
+
+            if (latitudePos != -1 && !isClosed){
+
+                latitudePos = latitudePos + 9;
+
+                latitude = line.substring(latitudePos, latitudePos + (longitudePos - latitudePos));
+
+                longitudePos = longitudePos + 11;
+
+                longitude = line.substring(longitudePos, longitudePos +  (altitudePos - longitudePos));
+
+                isClosed = true;
+                rl.close();
+            }
+        }).on('close', function () {
+
+            // log.debug("latitude: " + latitude + ", longitude: " + longitude);
+
+            //todo: testing-- change -longitude
+            var reverseGeocodeParams = {
+                "latlng":        latitude + "," + longitude,
+                "result_type":   "country|administrative_area_level_1|locality",
+                "language":      "en",
+                "location_type": "APPROXIMATE"
+            };
+
+            gmAPI.reverseGeocode(reverseGeocodeParams, function(err, result){
+
+                var param = {};
+
+                if (err){
+                    log.error(seq + ': gmAPI get reverseGeocode faild- ' + err);
+
+                    // Default value
+                    country = 'Italy';
+                    state = 'Emilia-Romagna';
+                    city = 'Parma';
+
+                    param = {
+                        seq: seq,
+                        latitude: latitude,
+                        longitude: longitude,
+                        country: country,
+                        state: state,
+                        city: city,
+                        done: done,
+                        allKeyword: allKeyword,
+                        batchAnnCount: batchAnnCount,
+                        annRemains: annRemains
+                    };
+
+                    parseSensorCallback(param);
+
+                } else {
+                    if (result.status == 'OK'){
+                        result.results[0].address_components.forEach(function (component) {
+                            component.types.forEach(function (type) {
+
+                                if (type == "country") country = component.long_name;
+                                if (type == "administrative_area_level_1") state = component.long_name;
+                                if (type == "locality") city = component.long_name;
+                            })
+                        });
+                    } else {
+
+                        // Default value
+                        country = 'Italy';
+                        state = 'Emilia-Romagna';
+                        city = 'Parma';
+                    }
+
+                    param = {
+                        seq: seq,
+                        latitude: latitude,
+                        longitude: longitude,
+                        country: country,
+                        state: state,
+                        city: city,
+                        done: done,
+                        allKeyword: allKeyword,
+                        batchAnnCount: batchAnnCount,
+                        annRemains: annRemains
+                    };
+
+                    parseSensorCallback(param);
+                }
+            });
+
+        });
+    } else {
+        var param = {
+            seq: seq,
+            country: importSwitch.country,
+            done: done,
+            allKeyword: allKeyword,
+            batchAnnCount: batchAnnCount,
+            annRemains: annRemains
+        };
+
+        parseSensorCallback(param);
+    }
+
+
+
+}
+
+
+function parseSensorCallback(param) {
+
+    var country = param.country;
+    var seq = param.seq;
+
+    if (country == 'Italy') countryCode = "it";
+    if (country == 'United States') countryCode = "us";
+    if (country == 'Taiwan') countryCode = "tw";
+
+    param.captureTime = seq.substring(9);
+
+    if (importSwitch.parseSensorCallback){
+        param.frameNum = ls(newArrived + "R/" + seq + '/*.raw').length;
+    }else {
+        param.frameNum = 900;
+    }
+
+
+    var title = seq.substring(11);
+    title = title.replace(/:/g, "");
+    param.title = title + "-" + countryCode;
+
+    genThumb(param);
+}
+
+
+function genThumb(param) {
+
+    log.info(param.title + ': genThumb');
+
+    var seq = param.seq;
+
+    if (importSwitch.genThumb){
+        exec('ffmpeg -i ' + newArrived + 'L/' + seq + '/video_h264.mp4 -ss 00:00:03.000 -vframes 1 -vf scale=-1:100 ' + newArrived + 'L/' + seq + '/temp_thumb.jpg',{silent:true});
+        exec('ffmpeg -i ' + newArrived + 'L/' + seq + '/temp_thumb.jpg -vframes 1 -vf crop=100:100 ' + newArrived + 'L/' + seq + '/thumb.jpg', {silent:true});
+        rm(newArrived + 'L/' + seq + '/temp_thumb.jpg');
+    }
+
+    setupFolder(param);
+
+}
+
+
+function setupFolder(param) {
+
+    var title = param.title;
+    var seq = param.seq;
+
+    log.info(title + ': setupFolder');
+
+    if (importSwitch.setupFolder){
+        mkdir('-p', seqRoot + title + '/Front_Stereo/L/raw');
+        mkdir('-p', seqRoot + title + '/Front_Stereo/R/raw');
+        mkdir('-p', seqRoot + title + '/Front_Stereo/L/metadata');
+        mkdir('-p', seqRoot + title + '/Front_Stereo/R/metadata');
+        mkdir('-p', seqRoot + title + '/Front_Stereo/L/yuv');
+        mkdir('-p', seqRoot + title + '/Front_Stereo/R/yuv');
+        mkdir('-p', seqRoot + title + '/Front_Stereo/annotation');
+
+        mv(newArrived + 'R/' + seq + '/OtherSensors*', seqRoot + title + '/' + title + '_Sensor');
+        mv(newArrived + 'L/' + seq + '/thumb.jpg', seqRoot + title + '/');
+        mv(newArrived + 'L/' + seq + '/video_h264.mp4', seqRoot + title + '/Front_Stereo/L/' + title + '_h264_L.mp4');
+        mv(newArrived + 'R/' + seq + '/video_h264.mp4', seqRoot + title + '/Front_Stereo/R/' + title + '_h264_R.mp4');
+        mv(newArrived + 'L/' + seq + '/*.raw', seqRoot + title + '/Front_Stereo/L/raw/');
+        mv(newArrived + 'R/' + seq + '/*.raw', seqRoot + title + '/Front_Stereo/R/raw/');
+        mv(newArrived + 'L/' + seq + '/*.bin', seqRoot + title + '/Front_Stereo/L/metadata/');
+        mv(newArrived + 'R/' + seq + '/*.bin', seqRoot + title + '/Front_Stereo/R/metadata/');
+
+        mv(newArrived + 'L/' + seq + '/cali_data', seqRoot + title + '/Front_Stereo/L/');
+        mv(newArrived + 'R/' + seq + '/cali_data', seqRoot + title + '/Front_Stereo/R/');
+
+        cd(seqRoot + title);
+        exec('tar -cf ' + title + '_Sensor.tar ' + title + '_Sensor');
+        cd(currentPath);
+        // rm('-r', seqRoot + title + '/' + title + '_Sensor');
+        rm('-r', newArrived + 'R/' + seq);
+        rm('-r', newArrived + 'L/' + seq);
+    }
+
+    parseMeta(param);
+
+}
+
+
+function parseMeta(param) {
+
+    var title = param.title;
+    log.info(title + ': parseMeta');
+
+    var metaPathL = seqRoot + title + '/Front_Stereo/L/metadata/';
+    var metaPathR = seqRoot + title + '/Front_Stereo/R/metadata/';
+
+    if (importSwitch.parseMeta){
+        exec('meta_parser -f ' + metaPathL + 'md_arm.bin -s ' + metaPathL + 'md_ucode_0000000000.bin -o ' + seqRoot + title + '/Front_Stereo/L/' + title + '_meta_L.txt', {silent:true});
+        exec('meta_parser -f ' + metaPathR + 'md_arm.bin -s ' + metaPathR + 'md_ucode_0000000000.bin -o ' + seqRoot + title + '/Front_Stereo/R/' + title + '_meta_R.txt', {silent:true});
+    }
+
+    insertDB(param);
+}
+
+
+function insertDB(param) {
+
+    log.info(param.title + ': insertDB');
+
+    var keywords = [];
+    for (var i = 0; i < param.allKeyword.length; i++){
+        if (param.allKeyword[i].title == param.title) {
+            keywords = param.allKeyword[i].keywords;
+            break;
+        }
+    }
+
+    var Sequence = {
+        title: param.title,
+        location: {country: param.country, state: param.state, city: param.city},
+        keywords: keywords,
+        gps: {x: param.latitude, y: param.longitude},
+        avg_speed: 0,
+        capture_time: param.captureTime,
+        frame_number: param.frameNum,
+        usage: "Training",
+        file_location: [{site: "us", root_path: "/vol1/" + param.title}, {site: "it", root_path: ""}],
+        no_annotation: false,
+        cameras: [
+            {
+                name: "Front_Stereo",
+                is_stereo: true,
+                yuv: [],
+                annotation: [
+                    {
+                        category: "moving_object",
+                        fps: 10,
+                        priority: 3,
+                        state: 'Pending',
+                        version: [{version_number: 1, comments: "Initial request"}]
+                    },
+                    {
+                        category: "free_space_with_curb",
+                        fps: 1,
+                        priority: 3,
+                        state: 'Pending',
+                        version: [{version_number: 1, comments: "Initial request"}]
+                    }
+                ]
+            }
+        ],
+        version: 4
+    };
+
+    if (importSwitch.insertDB){
+
+        var options = {
+            url: insertURL,
+            json: true,
+            body: Sequence,
+            timeout: 1000000
+        };
+
+        request.post(options, function(error, response, body) {
+            // log.debug('import body: ', body, 'error: ', error);
+
+            if ( error ) {
+                log.error(param.title + 'Import DB post failed: ', error);
+            }
+            else {
+                if ( response.statusCode == 200 ) {
+                    log.info(param.title + 'Import DB success: ', body);
+
+                    var decompress_job = queue.create('decompress', {
+                        sequenceObj: Sequence,
+                        batchAnnCount: param.batchAnnCount,
+                        annRemains: param.annRemains
+                    });
+
+                    decompress_job.save();
+
+                    param.done(null, 'import_new_done');
+
+                }
+                else {
+                    log.error(param.title + 'Import DB response failed, response.statusCode: ', response.statusCode);
+                }
+            }
+        });
+    } else {
+        var decompress_job = queue.create('decompress', {
+            sequenceObj: Sequence,
+            batchAnnCount: param.batchAnnCount,
+            annRemains: param.annRemains
+        });
+
+        decompress_job.save();
+
+        param.done(null, 'import_new_done');
+    }
+
+
+
+}
 
 
 var genTask = function (task, seq, annotationPath, h265, request) {
@@ -150,7 +611,7 @@ queue.process('decompress', function (job, done){
     log.info("Processing decompress: ", job.data.sequenceObj.title);
     log.info("Start: " + new Date());
 
-    if (queueSwitch.decompress){
+    if (importSwitch.decompress){
         var seq = job.data.sequenceObj;
         var frameNum = seq.frame_number;
         var rightRawDir = '/mnt/supercam/' + seq.title + '/Front_Stereo/R/raw';
@@ -159,7 +620,7 @@ queue.process('decompress', function (job, done){
         var startFrame = 0;
         var endFrame = divideFrame;
         var doneCount = 0;
-
+        var failed = false;
 
 
         // Todo: Change mount point on algo3 to be consistent with web server
@@ -200,10 +661,41 @@ queue.process('decompress', function (job, done){
                         log.info("Done decompress sequence: " + seq.title);
                         log.info("End: " + new Date());
 
+                        var encode_job = queue.create('encode', {
+                            sequenceObj: seq,
+                            channel: 'left',
+                            isInitEncode: true,
+                            batchAnnCount: job.data.batchAnnCount,
+                            annRemains: job.data.annRemains
+                        });
+
+                        encode_job.save();
+
+                        encode_job = queue.create('encode', {
+                            sequenceObj: seq,
+                            channel: 'right',
+                            isInitEncode: true,
+                            batchAnnCount: job.data.batchAnnCount,
+                            annRemains: job.data.annRemains
+                        });
+
+                        encode_job.save();
+
                         done(null, 'decompress_done');
                     }
                 } else {
                     log.error("decompress sequence " + seq.title + ' failed. Exit code: ' + exitCode);
+
+                    if (!failed){
+                        failed = true;
+                        var failed_decompress = queue.create('failed_decompress', {
+                            sequenceObj: seq,
+                            batchAnnCount: job.data.batchAnnCount,
+                            annRemains: job.data.annRemains
+                        });
+                        done(null, 'decompress_done');
+                    }
+
                 }
             });
 
@@ -217,10 +709,42 @@ queue.process('decompress', function (job, done){
 
                     if (doneCount == THREADS*2){
                         log.info("Done decompress sequence: " + seq.title);
+                        log.info("End: " + new Date());
+
+                        var encode_job = queue.create('encode', {
+                            sequenceObj: seq,
+                            channel: 'left',
+                            isInitEncode: true,
+                            batchAnnCount: job.data.batchAnnCount,
+                            annRemains: job.data.annRemains
+                        });
+
+                        encode_job.save();
+
+                        encode_job = queue.create('encode', {
+                            sequenceObj: seq,
+                            channel: 'right',
+                            isInitEncode: true,
+                            batchAnnCount: job.data.batchAnnCount,
+                            annRemains: job.data.annRemains
+                        });
+
+                        encode_job.save();
+
+
                         done(null, 'decompress_done');
                     }
                 } else {
                     log.error("decompress sequence " + seq.title + ' failed. Exit code: ' + exitCode);
+                    if (!failed){
+                        failed = true;
+                        var failed_decompress = queue.create('failed_decompress', {
+                            sequenceObj: seq,
+                            batchAnnCount: job.data.batchAnnCount,
+                            annRemains: job.data.annRemains
+                        });
+                        done(null, 'decompress_done');
+                    }
                 }
             });
 
@@ -463,7 +987,7 @@ queue.process('decompress', function (job, done){
 
 queue.process('dewarp', function (job, done){
 
-    if(queueSwitch.dewarp){
+    if(importSwitch.dewarp){
 
         log.info("Processing dewarp: ", job.data.sequenceObj.title);
         log.info("Start: " + new Date());
@@ -517,7 +1041,7 @@ queue.process('dewarp', function (job, done){
 
 queue.process('cat', function (job, done){
 
-    if(queueSwitch.cat){
+    if(importSwitch.cat){
 
         log.info("Processing cat: ", job.data.sequenceObj.title);
         log.info("Start: " + new Date());
@@ -568,7 +1092,7 @@ queue.process('encode_HEVC', function (job, done){
     var versionNum = job.data.versionNum;
     var ituner = job.data.ituner;
 
-    if(queueSwitch.encode_HEVC){
+    if(importSwitch.encode_HEVC){
 
 
 
@@ -644,7 +1168,7 @@ queue.process('encode_HEVC', function (job, done){
         });
 
     } else {
-       
+
         done(null, 'encode_HEVC_done');
     }
 
@@ -717,11 +1241,10 @@ queue.process('genAnnotation', function (job, done){
 
 
     var seq = job.data.sequenceObj;
-    var batchSequenceCount = job.data.batchSequenceCount;
 
     log.info("Processing genAnnotation: " + seq.title);
 
-    if (queueSwitch.genAnnotation){
+    if (importSwitch.genAnnotation){
         // Create annotation request package
         var annotationPath = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/annotation/temp/';
 
@@ -791,12 +1314,14 @@ queue.process('genAnnotation', function (job, done){
         //     }
         // });
 
-        log.debug('batchSequenceCount: ', batchSequenceCount);
+        curSeqCount++;
 
+        log.debug('curSeqCount: ', curSeqCount);
 
-
-        if (batchSequenceCount == 1){
+        if ((curSeqCount%30) == 0 || (batchAnnCount == 0 && (curSeqCount%30) == annRemains)){
             log.debug('tar whole batch');
+
+            batchAnnCount--;
 
             var batchCreateTime = new Date().toISOString();
             var batchName = batchCreateTime.substring(0, 19);
@@ -859,11 +1384,9 @@ queue.process('genAnnotation', function (job, done){
         done(null, 'genAnnotation_done');
     }
 
-
-
-
-
 });
+
+
 
 
 queue.on('job enqueue', function(id, type){
@@ -885,28 +1408,10 @@ queue.on('job enqueue', function(id, type){
         });
     }
 
-
     if (result === 'decompress_done'){
 
         kue.Job.get(id, function(err, job){
             if (err) return;
-
-
-            var encode_job = queue.create('encode', {
-                sequenceObj: job.data.sequenceObj,
-                channel: 'left',
-                isInitEncode: true
-            });
-
-            encode_job.save(); //Todo: Uncomment this line to start encode
-
-            encode_job = queue.create('encode', {
-                sequenceObj: job.data.sequenceObj,
-                channel: 'right',
-                isInitEncode: true
-            });
-
-            encode_job.save(); //Todo: Uncomment this line to start encode
 
 
             job.remove(function(err){
@@ -916,7 +1421,6 @@ queue.on('job enqueue', function(id, type){
 
         });
     }
-
 
     if (result === 'encode_done'){
 
@@ -940,7 +1444,9 @@ queue.on('job enqueue', function(id, type){
                 sequenceObj: job.data.sequenceObj,
                 channel: job.data.channel,
                 ituner: job.data.ituner,
-                versionNum: job.data.versionNum
+                versionNum: job.data.versionNum,
+                batchAnnCount: job.data.batchAnnCount,
+                annRemains: job.data.annRemains
             });
 
             cat_job.save();
@@ -963,7 +1469,9 @@ queue.on('job enqueue', function(id, type){
                 sequenceObj: job.data.sequenceObj,
                 channel: job.data.channel,
                 ituner: job.data.ituner,
-                versionNum: job.data.versionNum
+                versionNum: job.data.versionNum,
+                batchAnnCount: job.data.batchAnnCount,
+                annRemains: job.data.annRemains
             });
 
             encode_HEVC_job.save();
@@ -976,17 +1484,23 @@ queue.on('job enqueue', function(id, type){
         });
     }
 
-
-
     if (result === 'encode_HEVC_done'){
 
         kue.Job.get(id, function(err, job){
             if (err) return;
 
             if (job.data.channel == 'right'){
+
+                var curSeqCount = 1;
+                if (job.data.curSeqCount){
+                    curSeqCount = job.data.curSeqCount++;
+                }
+
                 var genAnnotation = queue.create('genAnnotation', {
                     sequenceObj: job.data.sequenceObj,
-                    batchSequenceCount: 1
+                    batchAnnCount: job.data.batchAnnCount,
+                    annRemains: job.data.annRemains,
+                    curSeqCount: curSeqCount
                 });
 
                 genAnnotation.save();
@@ -1000,7 +1514,6 @@ queue.on('job enqueue', function(id, type){
         });
 
     }
-
 
     if (result === 'genAnnotation_done'){
 
@@ -1021,6 +1534,19 @@ queue.on('job enqueue', function(id, type){
         });
     }
 
+    if (result === 'failed_decompress_done'){
+
+        kue.Job.get(id, function(err, job){
+            if (err) return;
+
+
+            job.remove(function(err){
+                if (err) throw err;
+                log.info('removed completed failed_decompress job #%d', job.id);
+            });
+
+        });
+    }
     // if (result === 'tar_yuv_done'){
     //
     //     kue.Job.get(id, function(err, job){
@@ -1037,51 +1563,3 @@ queue.on('job enqueue', function(id, type){
 
 
 });
-
-
-
-
-
-
-
-
-
-// node telnet
-
-// var connection = new telnet();
-//
-// var params = {
-//     host: '192.168.240.' + ip,
-//     timeout: 10000
-// };
-//
-// connection.on('ready', function (prompt) {
-//     connection.exec(cmd, function (err, response) {
-//         if (err) {
-//             log.debug('Error: ', response);
-//         } else {
-//             // log.debug(seq.title, ': ', response);
-//             connection.end();
-//         }
-//     });
-// });
-//
-// connection.on('timeout', function () {
-//     log.debug(seq.title, ': socket timeout!');
-//     connection.end();
-// });
-//
-// connection.on('close', function () {
-//     log.debug(seq.title, ': connection closed');
-//
-//     doneCount++;
-//     // log.debug("Done encode" + ' i:' + i + ', doneCount:' + doneCount);
-//
-//     if (doneCount == EVKNUM ) {
-//         // mv(serverOutputPath, yuvPath + 'v' + maxVersion);
-//         done(null, 'encode_done');
-//     }
-//
-// });
-//
-// connection.connect(params);

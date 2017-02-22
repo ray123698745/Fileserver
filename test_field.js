@@ -8,77 +8,539 @@ const fs = require('fs');
 const GoogleMapsAPI = require('googlemaps');
 
 const log4js = require('log4js');
-log4js.configure('log_config.json', { reloadSecs: 300 });
+log4js.configure(require('./log_config.json').decompress);
 const log = log4js.getLogger('test_field');
 require('shelljs/global');
+const express = require("express");
+const bodyParser = require("body-parser");
+const request = require('request');
+const kue = require('kue');
+const queue = kue.createQueue();
+const config = require('./config');
+
+const app = express();
+var url = 'http://localhost:3000/api/sequence/updateUnfiltered';
+var queryUrl = 'http://localhost:3000/api/sequence/query';
+
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+
+// var server = app.listen(process.env.PORT || 3020, function () {
+//     log.info("File server listening on port %s...", server.address().port);
+// });
+
+
+var csvPath = config.csvPath;
+var keyArr = config.keyArr;
+var countryCode = config.countryCode;
+var allKeyword = [];
+
+genKeywords();
 
 
 
+function genKeywords() {
 
-var version_number = 2;
-var uploadTime = "2016-11-03T04:57:21.204Z";
-var comments = "new comment!";
+    var rl = readline.createInterface({
+        terminal: false,
+        input: fs.createReadStream(csvPath)
+    });
 
-var jsonFile = fs.readFileSync('/supercam/vol1/test_field/old_json.json', 'utf-8');
+    rl.on('line', function(line){
 
+        if(line.charAt(0) == 'S'){
 
+            var title = line.substring(0, 28);
+            var parsedTitle = title.substring(11);
+            parsedTitle = parsedTitle.replace(/:/g, "");
+            parsedTitle = parsedTitle + "-it";
 
-if (jsonFile.search('\"metadata\"') != -1){
-    var jsonObj = JSON.parse(jsonFile);
-
-    jsonObj.metadata["annotation-version"] = version_number;
-    jsonObj.metadata["upload_time"] = uploadTime;
-
-    if(!jsonObj.metadata.comments.v1){
-        var tempComment = jsonObj.metadata.comments;
-        jsonObj.metadata.comments = {};
-        var tempKey = 'v' + (version_number-1);
-        jsonObj.metadata.comments[tempKey] = tempComment
-    }
-    var versionKey = 'v' + version_number;
-    jsonObj.metadata.comments[versionKey] = comments;
+            var content = line.substring(29);
+            content = content.replace(/,/g, "");
+            content = content.replace(/ /g, "");
 
 
-    log.debug('jsonObj: ', jsonObj.metadata);
+            var tempArr = [];
+
+            for(var i = 0; i < keyArr.length; i++){
+                if (content[i] == 1)
+                    tempArr.push(keyArr[i]);
+            }
+
+            allKeyword.push({
+                title: parsedTitle,
+                keywords: tempArr
+            });
+            // log.debug('content', content);
+            // log.debug('parsedTitle', parsedTitle);
+
+
+            if (parsedTitle == '17-01-11-150734-it') {
+                log.debug('content', content);
+
+                log.debug('tempArr', tempArr);
+            }
+
+        }
+
+
+    }).on('close', function () {
+
+
+        log.debug('closed');
+
+        // for (var i = 0; i < allKeyword.length; i++){
+        //     if (allKeyword[i].title == '17-01-11-150734-it') {
+        //         log.debug('keywords', allKeyword[i].keywords);
+        //         break;
+        //     }
+        // }
+
+    });
+
 }
 
-// var metadataPos = jsonFile.search('{')+1;
+
+
+
+
+
+
+
+
+
+
+
+
+// var seq = {
+//     title: "17-02-15-115100-us",
 //
-// var metadata = '\n \"metadata\":\n {\n  \"annotation-version\":\"' + version_number + '\",\n  ' + '\"upload_time\":\"' + uploadTime + '\",\n  ' + '\"comments\":\"' + comments + '\",\n  ' + '\"fps\":\"' + fps + '\"\n },';
+//     version: 4,
+//     batchNum: require('./config').batchNum
+// };
 //
-// var addMetadata = jsonFile.substring(0, metadataPos) + metadata + jsonFile.substring(metadataPos);
+
+// var key = "location.country";
+
+// var options = {
+//     url: "http://10.1.3.32:3000/api/sequence/query",
+//     json: true,
+//     body: {"location.country":"Taiwan"},
+//     timeout: 1000000
+// };
 //
-
-var jsonResult = JSON.stringify(jsonObj, null, 1);
-
-fs.writeFileSync('/supercam/vol1/test_field/json_back.json', jsonResult, 'utf-8');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Todo: read & import keyword from csv
-var keyArr = ["Sunny", "Rain", "Cloudy", "Snow", "Hail", "Bright", "Indoor", "Shadow", "Night_with_street_light",  "Night_without_street_light", "Dusk", "Dawn", "Back_lit", "Tunnel"];
+// request.post(options, function(error, response, body) {
+//     // log.debug('update path response', response, 'body', body, 'error', error);
+//     // log.debug('body: ', body, 'error: ', error);
 //
-// var seqObj = {};
+//     if ( error ) {
+//         log.error('Insert DB failed', error);
+//
+//
+//     }
+//     else {
+//         if ( response.statusCode == 200 ) {
+//             log.debug('Insert success', body.length);
+//
+//             var count = 0;
+//             for (var i = 0; i < body.length; i++){
+//                 if (body[i].gps.y < 0){
+//                     // log.debug('Insert success', body.length);
+//                     count++;
+//
+//                     var queries = {
+//                         condition: {_id: body[i]._id},
+//                         update: {$set: {"gps.y": -body[i].gps.y}},
+//                         options: {multi: false}
+//                     };
+//
+//                     var options = {
+//                         url: "http://10.1.3.32:3000/api/sequence/update",
+//                         json: true,
+//                         body: queries,
+//                         timeout: 1000000
+//                     };
+//
+//                     request.post(options, function(error, response, body) {
+//                         // log.debug('update path response', response, 'body', body, 'error', error);
+//                         // log.debug('body: ', body, 'error: ', error);
+//
+//                         if ( error ) {
+//                             log.error('update DB failed', error);
+//
+//
+//                         }
+//                         else {
+//                             if ( response.statusCode == 200 ) {
+//                                 log.debug('update success', body);
+//                             }
+//                             else {
+//                                 log.error('Insert failed', response.statusCode);
+//                             }
+//                         }
+//                     });
+//
+//
+//
+//
+//                 }
+//             }
+//             log.debug('count', count);
+//
+//
+//
+//
+//         }
+//         else {
+//             log.error('Insert failed', response.statusCode);
+//         }
+//     }
+// });
+
+
+
+//
+// var testing_seq = ['16-09-16-163729-us', '16-10-22-103658-tw', '16-10-22-144618-tw', '16-11-04-074711-tw', '16-11-04-163158-tw', '16-11-14-074717-tw', '16-11-14-075645-tw', '16-11-14-082050-tw', '16-11-14-135323-tw', '16-11-14-140644-tw', '16-11-21-144313-tw', '16-11-21-144403-tw', '16-11-21-152240-tw', '16-11-21-155049-tw', '16-11-23-104901-tw', '16-11-24-160400-tw'];
+//
+//
+//
+//
+//
+// for (var i = 0; i < testing_seq.length; i++){
+//
+//     mkdir('/dump/algo2/Ray/test_sequence/' + testing_seq[i]);
+//
+//     cp('/supercam/vol1/test_field/re_encode/' + testing_seq[i] + '/Front_Stereo/R/yuv/' + testing_seq[i] + '_yuv_v1_R/*.yuv', '/dump/algo2/Ray/test_sequence/' + testing_seq[i]);
+//
+//     log.debug(testing_seq[i], 'done');
+//
+// }
+//
+// log.debug('done');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// query = { version: 4,
+//     no_annotation: false,
+//     '$or':
+//         [ { 'cameras.0.annotation': { '$elemMatch': { category: 'moving_object', state: 'Accepted' } } },
+//             { 'cameras.0.annotation': { '$elemMatch': { category: 'moving_object', state: 'Finished' } } },
+//             { 'cameras.0.annotation': { '$elemMatch': { category: 'moving_object', state: 'Finished_Basic' } } } ] };
+//
+//
+//
+// var options = {
+//     url: queryUrl,
+//     json: true,
+//     body: query,
+//     timeout: 1000000
+// };
+//
+// request.post(options, function(error, response, body) {
+//     // log.debug('update path response', response, 'body', body, 'error', error);
+//     // log.debug('body: ', body, 'error: ', error);
+//
+//     if ( error ) {
+//         log.error('query DB failed', error);
+//     }
+//     else {
+//         if ( response.statusCode == 200 ) {
+//             log.debug('query success');
+//
+//             for (var i = 0; i < body.length; i++){
+//
+//                 mv('/supercam/vol1/' + body[i].title + '/Front_Stereo/R/yuv/' + body[i].title + '_h265_v1.mp4', '/supercam/vol1/' + body[i].title + '/Front_Stereo/R/yuv/' + body[i].title + '_h265_v1_R.mp4');
+//
+//
+//                 // var untar_job = queue.create('untar', {
+//                 //     sequenceObj: body[i]
+//                 // });
+//                 //
+//                 // untar_job.save();
+//
+//             }
+//
+//         }
+//         else {
+//             log.error('query failed', response.statusCode);
+//         }
+//     }
+// });
+
+
+
+//
+//
+// queue.process('untar', function (job, done){
+//
+//
+//     log.info("Processing untar: ", job.data.sequenceObj.title);
+//     log.info("Start: " + new Date());
+//
+//
+//     var seq = job.data.sequenceObj;
+//
+//     done(null, 'untar_done');
+//
+//
+// });
+//
+// queue.process('cat', function (job, done){
+//
+//
+//     log.info("Processing cat: ", job.data.sequenceObj.title);
+//     log.info("Start: " + new Date());
+//
+//
+//     var seq = job.data.sequenceObj;
+//
+//     done(null, 'cat_done');
+//
+//
+// });
+//
+// queue.process('encode_HEVC', function (job, done){
+//
+//
+//     log.info("Processing encode_HEVC: ", job.data.sequenceObj.title);
+//     log.info("Start: " + new Date());
+//
+//
+//     var seq = job.data.sequenceObj;
+//
+//     done(null, 'encode_HEVC_done');
+//
+//
+// });
+//
+//
+//
+//
+// queue.on('job enqueue', function(id, type){
+//
+//     log.info('Job %s got queued of type %s', id, type );
+//
+// }).on('job complete', function(id, result){
+//
+//     if (result === 'untar_done'){
+//
+//         kue.Job.get(id, function(err, job){
+//             if (err) return;
+//
+//
+//             var cat_job = queue.create('cat', {
+//                 sequenceObj: job.data.sequenceObj
+//             });
+//
+//             cat_job.save();
+//
+//             job.remove(function(err){
+//                 if (err) throw err;
+//                 log.info('removed completed untar job #%d', job.id);
+//             });
+//
+//         });
+//     }
+//
+//     if (result === 'cat_done'){
+//
+//         kue.Job.get(id, function(err, job){
+//             if (err) return;
+//
+//
+//             var encode_HEVC_job = queue.create('encode_HEVC', {
+//                 sequenceObj: job.data.sequenceObj
+//             });
+//
+//             encode_HEVC_job.save();
+//
+//             job.remove(function(err){
+//                 if (err) throw err;
+//                 log.info('removed completed cat job #%d', job.id);
+//             });
+//
+//         });
+//     }
+//
+//
+//
+//     if (result === 'encode_HEVC_done'){
+//
+//         kue.Job.get(id, function(err, job){
+//             if (err) return;
+//
+//
+//             job.remove(function(err){
+//                 if (err) throw err;
+//                 log.info('removed completed encode_HEVC job #%d', job.id);
+//             });
+//         });
+//
+//     }
+//
+//
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//
+// var arr = ['Sunny', 'Bright', 'Shadow','Night_with_street_light'];
+// var selected = ['Sunny', 'Bright'];
+//
+//
+// if(arr.indexOf('asd') > -1){
+//     log.debug('true!');
+// } else {
+//     log.debug('false!');
+// }
+//
+// var sumOfCode = function (str) {
+//
+//     var sum = 0;
+//
+//     for (var i = 0; i < str.length; i++){
+//         sum += str.charCodeAt(i);
+//     }
+//
+//     log.debug('sum:', sum);
+//
+//     return sum;
+// };
+//
+//
+// var a = "2016-05-21T00:01:00.000Z";
+// var b = "2017-10-30T00:32:00.000Z";
+// var c = "2017-10-31T00:32:00.000Z";
+// var d = "2017-10-31T00:33:00.000Z";
+//
+// var day1 = new Date(c);
+// var day2 = new Date(d);
+
+
+
+// sumOfCode(a);
+// sumOfCode(b);
+// sumOfCode(c);
+// sumOfCode(d);
+
+
+// log.debug(day2.getTime());
+
+// log.debug(a.localeCompare(b));
+
+
+
+// var arr = [1, 2, 3, 4];
+// var selected = ['Sunny', 'Bright'];
+//
+// if(3 in arr){
+//     log.debug('true!');
+// } else {
+//     log.debug('false!')
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// fs.readdir('/dump/algo1/Ray/ssd_2', function(err, seqs) {
+//     if (err){
+//         log.error(err);
+//     } else {
+//         log.debug(seqs);
+//
+//         var count = 1;
+//         seqs.forEach(function(seq) {
+//
+//             if (seq.charAt(0) == 'S'){
+//
+//                 mv('/dump/algo1/Ray/ssd_2/'+seq+'/f_0000000000.yuv', '/dump/algo1/Ray/ssd_2/' + count + '.yuv');
+//                 count++;
+//             }
+//         });
+//
+//         log.debug('done!');
+//
+//     }
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//
+// // Todo: read & import keyword from csv
+// var keyArr = ['Sunny','Rain','Cloudy','Snow','Hail','Bright','Indoor','Shadow','Night_with_street_light','Night_without_street_light','Dusk','Dawn','Back_lit','Tunnel','Urban','Suburban','Rural','Highway','Parking_lot','Full_lane_marking','Center_lane_only','No_lane_Marking','Special_lane_Marking','Accident','Pot_hole','No_vehicle','Few_vehicle','More_vehicle','Special_vehicle','No_Pedestrian','Few_Pedestrian','More_Pedestrian','Construction', 'Intersection', 'Round_about'];
+//
+// var queries = [];
+// var countryCode = "tw";
 //
 // var rl = readline.createInterface({
 //
-//     input: fs.createReadStream('/supercam/vol1/test_field/sequence_tag.csv')
+//     input: fs.createReadStream('/supercam/vol1/test_field/keyword_v1.csv')
 // });
 //
 //
@@ -89,7 +551,12 @@ var keyArr = ["Sunny", "Rain", "Cloudy", "Snow", "Hail", "Bright", "Indoor", "Sh
 //         // log.debug(line);
 //
 //         var title = line.substring(0, 28);
-//         log.debug('title: ', title);
+//         var parsedTitle = title.substring(11);
+//         parsedTitle = parsedTitle.replace(/:/g, "");
+//         parsedTitle = parsedTitle + "-" + countryCode;
+//         log.debug('parsedTitle: ', parsedTitle);
+//
+//
 //
 //         var content = line.substring(29);
 //         content = content.replace(/,/g, "");
@@ -98,22 +565,123 @@ var keyArr = ["Sunny", "Rain", "Cloudy", "Snow", "Hail", "Bright", "Indoor", "Sh
 //
 //         var tempArr = [];
 //
-//         for(var i = 0; i < content.length; i++){
+//         for(var i = 0; i < keyArr.length; i++){
 //             if (content[i] == 1)
 //                 tempArr.push(keyArr[i]);
 //         }
 //
+//         if(content[keyArr.length] == 1)
+//             log.debug('need annotation');
+//         if(content[keyArr.length+1] != null){
+//             log.debug('note:', content.substring(keyArr.length+1));
+//         }
+//
 //         log.debug('tempArr: ', tempArr);
 //
-//         seqObj[title] = tempArr;
+//         queries.push({
+//             condition: {title: parsedTitle},
+//             update: {$set: {"keywords": tempArr}},
+//             options: {multi: false}
+//         });
+//
+//
+//
 //     }
 //
 //
 // }).on('close', function () {
-//     log.debug('seqObj: ', seqObj);
+//
+//
+//     // log.debug('queries: ', queries);
+//
+//
+//     // var options = {
+//     //     url: url,
+//     //     json: true,
+//     //     body: queries,
+//     //     timeout: 1000000
+//     // };
+//     //
+//     // request.post(options, function(error, response, body) {
+//     //     // log.debug('import body: ', body, 'error: ', error);
+//     //
+//     //     if ( error ) {
+//     //         log.error('Import keywords post failed: ', error);
+//     //     }
+//     //     else {
+//     //         if ( response.statusCode == 200 ) {
+//     //             log.info('Import keywords success: ', body);
+//     //
+//     //         }
+//     //         else {
+//     //             log.error('Import keywords response failed, response.statusCode: ', response.statusCode);
+//     //         }
+//     //     }
+//     // });
 //
 //     log.debug('closed');
 // });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//
+// var version_number = 2;
+// var uploadTime = "2016-11-03T04:57:21.204Z";
+// var comments = "new comment!";
+//
+// var jsonFile = fs.readFileSync('/supercam/vol1/test_field/old_json.json', 'utf-8');
+//
+//
+//
+// if (jsonFile.search('\"metadata\"') != -1){
+//     var jsonObj = JSON.parse(jsonFile);
+//
+//     jsonObj.metadata["annotation-version"] = version_number;
+//     jsonObj.metadata["upload_time"] = uploadTime;
+//
+//     if(!jsonObj.metadata.comments.v1){
+//         var tempComment = jsonObj.metadata.comments;
+//         jsonObj.metadata.comments = {};
+//         var tempKey = 'v' + (version_number-1);
+//         jsonObj.metadata.comments[tempKey] = tempComment
+//     }
+//     var versionKey = 'v' + version_number;
+//     jsonObj.metadata.comments[versionKey] = comments;
+//
+//
+//     log.debug('jsonObj: ', jsonObj.metadata);
+// }
+//
+// // var metadataPos = jsonFile.search('{')+1;
+// //
+// // var metadata = '\n \"metadata\":\n {\n  \"annotation-version\":\"' + version_number + '\",\n  ' + '\"upload_time\":\"' + uploadTime + '\",\n  ' + '\"comments\":\"' + comments + '\",\n  ' + '\"fps\":\"' + fps + '\"\n },';
+// //
+// // var addMetadata = jsonFile.substring(0, metadataPos) + metadata + jsonFile.substring(metadataPos);
+// //
+//
+// var jsonResult = JSON.stringify(jsonObj, null, 1);
+//
+// fs.writeFileSync('/supercam/vol1/test_field/json_back.json', jsonResult, 'utf-8');
 
 
 

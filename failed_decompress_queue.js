@@ -14,7 +14,7 @@ const queue = kue.createQueue({
 });
 require('shelljs/global');
 
-const THREADS = 8;
+const THREADS = 4;
 const SITE = 'us';
 
 var getRootPathBySite = function (siteArray) {
@@ -27,7 +27,7 @@ var getRootPathBySite = function (siteArray) {
 };
 
 
-queue.process('decompress', function (job, done){
+queue.process('failed_decompress', function (job, done){
 
 
     log.info("Processing decompress: ", job.data.sequenceObj.title);
@@ -42,7 +42,7 @@ queue.process('decompress', function (job, done){
     var startFrame = 0;
     var endFrame = divideFrame;
     var doneCount = 0;
-
+    var failed = false;
 
 
     // Todo: Change mount point on algo3 to be consistent with web server
@@ -50,30 +50,13 @@ queue.process('decompress', function (job, done){
     // var leftRawDir = '/mnt/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/L/raw';
 
 
-
-
     for (var i = 0; i < THREADS; i++){
-
-        // log.debug('startFrame: ', startFrame);
-
 
         if (i === THREADS-1)
             endFrame = endFrame + (frameNum % THREADS);
 
         var decompressRight = spawn('./decompress/decompress.sh', [rightRawDir, rightRawDir, startFrame, endFrame-1]);
         var decompressLeft = spawn('./decompress/decompress.sh', [leftRawDir, leftRawDir, startFrame, endFrame-1]);
-
-
-        // decompressRight.stdout.on('data',
-        //     function (data) {
-        //         // log.debug('right stdout: ' + data);
-        //     }
-        // );
-        // decompressLeft.stdout.on('data',
-        //     function (data) {
-        //         // log.debug('left stdout: ' + data);
-        //     }
-        // );
 
 
         decompressRight.stderr.on('data',
@@ -100,18 +83,41 @@ queue.process('decompress', function (job, done){
                     log.info("Done decompress sequence: " + seq.title);
                     log.info("End: " + new Date());
 
+                    var encode_job = queue.create('encode', {
+                        sequenceObj: seq,
+                        channel: 'left',
+                        isInitEncode: true,
+                        batchAnnCount: job.data.batchAnnCount,
+                        annRemains: job.data.annRemains
+                    });
+
+                    encode_job.save();
+
+                    encode_job = queue.create('encode', {
+                        sequenceObj: seq,
+                        channel: 'right',
+                        isInitEncode: true,
+                        batchAnnCount: job.data.batchAnnCount,
+                        annRemains: job.data.annRemains
+                    });
+
+                    encode_job.save();
+
                     done(null, 'decompress_done');
                 }
             } else {
                 log.error("decompress sequence " + seq.title + ' failed. Exit code: ' + exitCode);
 
-                // Todo: should comment out donCount++
-                // doneCount++;
-                //
-                // if (doneCount == THREADS*2){
-                //     log.debug("Done decompress sequence: " + seq.title);
-                //     done(null, 'decompress_done');
-                // }
+                if (!failed){
+                    failed = true;
+                    var failed_decompress = queue.create('failed_decompress', {
+                        sequenceObj: seq,
+                        batchAnnCount: job.data.batchAnnCount,
+                        annRemains: job.data.annRemains
+                    });
+                    done(null, 'decompress_done');
+                }
+
             }
         });
 
@@ -125,18 +131,42 @@ queue.process('decompress', function (job, done){
 
                 if (doneCount == THREADS*2){
                     log.info("Done decompress sequence: " + seq.title);
+                    log.info("End: " + new Date());
+
+                    var encode_job = queue.create('encode', {
+                        sequenceObj: seq,
+                        channel: 'left',
+                        isInitEncode: true,
+                        batchAnnCount: job.data.batchAnnCount,
+                        annRemains: job.data.annRemains
+                    });
+
+                    encode_job.save();
+
+                    encode_job = queue.create('encode', {
+                        sequenceObj: seq,
+                        channel: 'right',
+                        isInitEncode: true,
+                        batchAnnCount: job.data.batchAnnCount,
+                        annRemains: job.data.annRemains
+                    });
+
+                    encode_job.save();
+
+
                     done(null, 'decompress_done');
                 }
             } else {
                 log.error("decompress sequence " + seq.title + ' failed. Exit code: ' + exitCode);
-
-                // Todo: should comment out donCount++
-                // doneCount++;
-                //
-                // if (doneCount == THREADS*2){
-                //     log.debug("Done decompress sequence: " + seq.title);
-                //     done(null, 'decompress_done');
-                // }
+                if (!failed){
+                    failed = true;
+                    var failed_decompress = queue.create('failed_decompress', {
+                        sequenceObj: seq,
+                        batchAnnCount: job.data.batchAnnCount,
+                        annRemains: job.data.annRemains
+                    });
+                    done(null, 'decompress_done');
+                }
             }
         });
 
@@ -144,8 +174,6 @@ queue.process('decompress', function (job, done){
         endFrame = endFrame + divideFrame;
 
     }
-
-    // done(null, 'decompress_done');  // Todo: comment out this line
 
 
 });
