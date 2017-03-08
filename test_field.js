@@ -17,6 +17,7 @@ const request = require('request');
 const kue = require('kue');
 const queue = kue.createQueue();
 const config = require('./config');
+const spawn = require('child_process').spawn;
 
 const app = express();
 var url = 'http://localhost:3000/api/sequence/updateUnfiltered';
@@ -27,80 +28,346 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 
-// var server = app.listen(process.env.PORT || 3020, function () {
-//     log.info("File server listening on port %s...", server.address().port);
-// });
-
-
-var csvPath = config.csvPath;
-var keyArr = config.keyArr;
-var countryCode = config.countryCode;
-var allKeyword = [];
-
-genKeywords();
+var server = app.listen(process.env.PORT || 3020, function () {
+    log.info("File server listening on port %s...", server.address().port);
+});
 
 
 
-function genKeywords() {
-
-    var rl = readline.createInterface({
-        terminal: false,
-        input: fs.createReadStream(csvPath)
-    });
-
-    rl.on('line', function(line){
-
-        if(line.charAt(0) == 'S'){
-
-            var title = line.substring(0, 28);
-            var parsedTitle = title.substring(11);
-            parsedTitle = parsedTitle.replace(/:/g, "");
-            parsedTitle = parsedTitle + "-it";
-
-            var content = line.substring(29);
-            content = content.replace(/,/g, "");
-            content = content.replace(/ /g, "");
 
 
-            var tempArr = [];
 
-            for(var i = 0; i < keyArr.length; i++){
-                if (content[i] == 1)
-                    tempArr.push(keyArr[i]);
-            }
-
-            allKeyword.push({
-                title: parsedTitle,
-                keywords: tempArr
-            });
-            // log.debug('content', content);
-            // log.debug('parsedTitle', parsedTitle);
+query = { version: 4,
+    "batchNum.country": "US",
+    "batchNum.num": 2
+};
 
 
-            if (parsedTitle == '17-01-11-150734-it') {
-                log.debug('content', content);
 
-                log.debug('tempArr', tempArr);
+var options = {
+    url: queryUrl,
+    json: true,
+    body: query,
+    timeout: 1000000
+};
+
+request.post(options, function(error, response, body) {
+    // log.debug('update path response', response, 'body', body, 'error', error);
+    // log.debug('body: ', body, 'error: ', error);
+
+    if ( error ) {
+        log.error('query DB failed', error);
+    }
+    else {
+        if ( response.statusCode == 200 ) {
+            log.debug('query success', body.length);
+
+            for (var i = 0; i < body.length; i++){
+
+                exec('tar -C /dump/algo1/Ray/SF_json/ -xzf /supercam/vol1/' + body[i].title + '/Front_Stereo/annotation/' + body[i].title + '.tar.gz ' + body[i].title + '_h265_v1_R.mp4 ' + body[i].title + '_Moving-object');
+                mv('/dump/algo1/Ray/SF_json/' + body[i].title + '_h265_v1_R.mp4', '/dump/algo1/Ray/SF_json/' + body[i].title + '_Moving-object');
+                // log.debug('title:', body[i].title);
+
+                // cp('/supercam/vol1/'+body[i].title+'/Front_Stereo/R/yuv/'+body[i].title+'_h265_v1_R.mp4','/supercam/vol1/test_field/0221_reencode/');
+
+
+                // rm('-r','/supercam/vol1/'+body[i].title+'/Front_Stereo/R/yuv/*');
+                // rm('-r','/supercam/vol1/'+body[i].title+'/Front_Stereo/L/yuv/*');
+
+
+                // body[i].keywords = 'Bright';
+                //
+                // var encode_job = queue.create('encode', {
+                //     sequenceObj: body[i],
+                //     channel: 'left',
+                //     isInitEncode: true,
+                //     batchAnnCount: 1,
+                //     annRemains: 1,
+                //     curSeqCount: 1
+                // });
+                //
+                // encode_job.save();
+                //
+                // encode_job = queue.create('encode', {
+                //     sequenceObj: body[i],
+                //     channel: 'right',
+                //     isInitEncode: true,
+                //     batchAnnCount: 1,
+                //     annRemains: 1,
+                //     curSeqCount: 1
+                // });
+                //
+                // encode_job.save();
+
             }
 
         }
+        else {
+            log.error('query failed', response.statusCode);
+        }
+    }
+});
 
 
-    }).on('close', function () {
 
 
-        log.debug('closed');
 
-        // for (var i = 0; i < allKeyword.length; i++){
-        //     if (allKeyword[i].title == '17-01-11-150734-it') {
-        //         log.debug('keywords', allKeyword[i].keywords);
-        //         break;
-        //     }
-        // }
 
-    });
 
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// var seqPath = '/supercam/vol1/test_field/0217_test/R/SuperCam-2017-02-16-22:17:40';
+// var evkPath = '/mnt/ssd_1/test_field/0217_test/R/SuperCam-2017-02-16-22:17:40';
+//
+// var itunerPath = '/home/amba/ini/night_compressed_sharp_LV2_stronge_CE_LV1_0.txt';
+//
+// var frameNum = 542;
+// var interval = 1;
+//
+//
+// var cmd = './decompress/decompress.sh ' + seqPath + ' ' + seqPath + ' ' + frameNum + ' ' + (frameNum+interval-1);
+//
+// exec(cmd, {async:true}, function (code, stdout, stderr) {
+//
+//     if (code == 0) {
+//
+//         log.info('decompress completed');
+//
+//         var encode_cmd = 'test_ituner -l ' + itunerPath + ' -g 0;sleep 3;./raw_encode.sh ' + evkPath + ' ' + evkPath + ' ' + frameNum + ' ' + interval + ' 1 0 0';
+//
+//         // cmd = 'ruby telnet.rb ' + encode_cmd + ' 192.168.240.19';
+//
+//
+//
+//         var child = spawn('ruby', ['telnet.rb', encode_cmd, '192.168.240.19']);
+//
+//         child.stdout.on('data',
+//             function (data) {
+//                 log.debug('stdout: ' + data);
+//             }
+//         );
+//
+//
+//         child.on('exit', function (exitCode) {
+//             log.info("Child exited with code: " + exitCode);
+//
+//             if (exitCode === 0) {
+//                 log.info('encode completed');
+//
+//                 for(var i = 0; i< interval; i++){
+//                     var str = "" + (frameNum+i);
+//                     var pad = "0000000000";
+//                     var ans = pad.substring(0, pad.length - str.length) + str;
+//
+//                     var cmd = 'ffmpeg -pix_fmt nv12 -s 3840x2160 -y -i ' + seqPath + '/f_'+ ans + '.yuv /dump/dump200/cjfang/test_field/f_' + ans + '.jpg';
+//
+//                     exec(cmd, {async:true}, function (code, stdout, stderr) {
+//
+//                         if (code == 0) {
+//
+//                             log.info('RGB completed');
+//
+//
+//
+//                         } else {
+//                             log.error("RGB command failed. stderr: " + stderr);
+//                         }
+//                     });
+//
+//
+//                     // cp(seqPath + '/f_' + ans + '.yuv', '/dump/dump200/cjfang/test_field');
+//                 }
+//             }
+//         });
+//
+//     } else {
+//         log.error("decompress command failed. stderr: " + stderr);
+//     }
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+// query = { version: 4,
+//     "batchNum.country": "ITA",
+//     "keywords": "Night_without_street_light"
+// };
+//
+//
+//
+// var options = {
+//     url: queryUrl,
+//     json: true,
+//     body: query,
+//     timeout: 1000000
+// };
+//
+// request.post(options, function(error, response, body) {
+//     // log.debug('update path response', response, 'body', body, 'error', error);
+//     // log.debug('body: ', body, 'error: ', error);
+//
+//     if ( error ) {
+//         log.error('query DB failed', error);
+//     }
+//     else {
+//         if ( response.statusCode == 200 ) {
+//             log.debug('query success', body.length);
+//
+//             for (var i = 0; i < body.length; i++){
+//
+//
+//                 log.debug('title:', body[i].title);
+//
+//                 cp('/supercam/vol1/'+body[i].title+'/Front_Stereo/R/yuv/'+body[i].title+'_h265_v1_R.mp4','/supercam/vol1/test_field/0221_reencode/');
+//
+//
+//                 // rm('-r','/supercam/vol1/'+body[i].title+'/Front_Stereo/R/yuv/*');
+//                 // rm('-r','/supercam/vol1/'+body[i].title+'/Front_Stereo/L/yuv/*');
+//
+//
+//                 // body[i].keywords = 'Bright';
+//                 //
+//                 // var encode_job = queue.create('encode', {
+//                 //     sequenceObj: body[i],
+//                 //     channel: 'left',
+//                 //     isInitEncode: true,
+//                 //     batchAnnCount: 1,
+//                 //     annRemains: 1,
+//                 //     curSeqCount: 1
+//                 // });
+//                 //
+//                 // encode_job.save();
+//                 //
+//                 // encode_job = queue.create('encode', {
+//                 //     sequenceObj: body[i],
+//                 //     channel: 'right',
+//                 //     isInitEncode: true,
+//                 //     batchAnnCount: 1,
+//                 //     annRemains: 1,
+//                 //     curSeqCount: 1
+//                 // });
+//                 //
+//                 // encode_job.save();
+//
+//             }
+//
+//         }
+//         else {
+//             log.error('query failed', response.statusCode);
+//         }
+//     }
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// var csvPath = config.csvPath;
+// var keyArr = config.keyArr;
+// var countryCode = config.countryCode;
+// var allKeyword = [];
+//
+// genKeywords();
+//
+//
+//
+// function genKeywords() {
+//
+//     var rl = readline.createInterface({
+//         terminal: false,
+//         input: fs.createReadStream(csvPath)
+//     });
+//
+//     rl.on('line', function(line){
+//
+//         if(line.charAt(0) == 'S'){
+//
+//             var title = line.substring(0, 28);
+//             var parsedTitle = title.substring(11);
+//             parsedTitle = parsedTitle.replace(/:/g, "");
+//             parsedTitle = parsedTitle + "-it";
+//
+//             var content = line.substring(29);
+//             content = content.replace(/,/g, "");
+//             content = content.replace(/ /g, "");
+//
+//
+//             var tempArr = [];
+//
+//             for(var i = 0; i < keyArr.length; i++){
+//                 if (content[i] == 1)
+//                     tempArr.push(keyArr[i]);
+//             }
+//
+//             allKeyword.push({
+//                 title: parsedTitle,
+//                 keywords: tempArr
+//             });
+//             // log.debug('content', content);
+//             // log.debug('parsedTitle', parsedTitle);
+//
+//
+//             if (parsedTitle == '17-01-11-150734-it') {
+//                 log.debug('content', content);
+//
+//                 log.debug('tempArr', tempArr);
+//             }
+//
+//         }
+//
+//
+//     }).on('close', function () {
+//
+//
+//         log.debug('closed');
+//
+//         // for (var i = 0; i < allKeyword.length; i++){
+//         //     if (allKeyword[i].title == '17-01-11-150734-it') {
+//         //         log.debug('keywords', allKeyword[i].keywords);
+//         //         break;
+//         //     }
+//         // }
+//
+//     });
+//
+// }
 
 
 

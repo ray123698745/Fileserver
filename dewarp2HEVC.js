@@ -12,6 +12,14 @@ const queue = kue.createQueue({
         host: '10.1.3.32'
     }
 });
+
+const express = require("express");
+const bodyParser = require("body-parser");
+const app = express();
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+const request = require('request');
 const log4js = require('log4js');
 log4js.configure(require('./log_config.json').dewarp2HEVC);
 const log = log4js.getLogger('dewarp2HEVC');
@@ -20,9 +28,12 @@ const config = require('./config');
 const readline = require('readline');
 require('shelljs/global');
 
-
 const SITE = 'us';
+var insertURL = config.insertURL;
 
+var server = app.listen(process.env.PORT || 3005, function () {
+    log.info("File server listening on port %s...", server.address().port);
+});
 
 
 var getRootPathBySite = function (siteArray) {
@@ -283,6 +294,31 @@ queue.process('genPreviewImg', function (job, done){
 
                 log.info('genPreviewImg completed: ' + seq.title);
 
+                var options = {
+                    url: insertURL,
+                    json: true,
+                    body: seq,
+                    timeout: 1000000
+                };
+
+                request.post(options, function(error, response, body) {
+                    // log.debug('update path response', response, 'body', body, 'error', error);
+                    // log.debug('body: ', body, 'error: ', error);
+
+                    if ( error ) {
+                        log.error('Insert DB failed', error);
+                    }
+                    else {
+                        if ( response.statusCode == 200 ) {
+                            log.debug('Insert success', body);
+                            done(null, 'genPreviewImg_done');
+                        }
+                        else {
+                            log.error('Insert failed', response.statusCode);
+                        }
+                    }
+                });
+
                 var genAnnotation = queue.create('genAnnotation', {
                     sequenceObj: seq,
                     batchAnnCount: job.data.batchAnnCount,
@@ -290,10 +326,9 @@ queue.process('genPreviewImg', function (job, done){
                     curSeqCount: job.data.curSeqCount
                 });
 
-                genAnnotation.save();
+                // genAnnotation.save(); // Todo: uncomment!
+                // done(null, 'genPreviewImg_done');
 
-
-                done(null, 'genPreviewImg_done');
 
             } else {
                 log.error("genPreviewImg command failed. stderr: " + stderr);

@@ -23,7 +23,12 @@ const log4js = require('log4js');
 log4js.configure(require('./log_config.json').init_seq);
 const log = log4js.getLogger('init_seq');
 const fs = require('fs');
+const express = require("express");
+const bodyParser = require("body-parser");
+const app = express();
 const request = require('request');
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 const config = require('./config');
 const readline = require('readline');
 const GoogleMapsAPI = require('googlemaps');
@@ -35,9 +40,15 @@ var newArrived = config.newArrived;
 var seqRoot = config.seq;
 var countryCode = config.countryCode;
 var batchNum = config.batchNum;
-
-
+var insertURL = config.insertURL;
 var currentPath = pwd();
+
+
+// var server = app.listen(process.env.PORT || 3008, function () {
+//     log.info("File server listening on port %s...", server.address().port);
+// });
+
+
 
 var publicConfig = {
     key: 'AIzaSyBKazcMqdk5t0mJcyv7lroFEKtLthpFaLg',
@@ -343,9 +354,49 @@ function CreateDBRecord(param) {
                 ]
             }
         ],
-        version: 4,
+        version: 5,
         batchNum: batchNum
     };
+
+    // var options = {
+    //     url: insertURL,
+    //     json: true,
+    //     body: Sequence,
+    //     timeout: 1000000
+    // };
+    //
+    // request.post(options, function(error, response, body) {
+    //     // log.debug('update path response', response, 'body', body, 'error', error);
+    //     // log.debug('body: ', body, 'error: ', error);
+    //
+    //     if ( error ) {
+    //         log.error('Insert DB failed', error);
+    //
+    //
+    //     }
+    //     else {
+    //         if ( response.statusCode == 200 ) {
+    //             log.debug('Insert success', body);
+    //
+    //             var decompress_job = queue.create('decompress', {
+    //                 sequenceObj: Sequence,
+    //                 batchAnnCount: param.batchAnnCount,
+    //                 annRemains: param.annRemains,
+    //                 curSeqCount: param.curSeqCount
+    //             });
+    //
+    //             decompress_job.save();
+    //
+    //
+    //             param.done(null, 'init_seq_done');
+    //         }
+    //         else {
+    //             log.error('Insert failed', response.statusCode);
+    //         }
+    //     }
+    // });
+
+
 
     var decompress_job = queue.create('decompress', {
         sequenceObj: Sequence,
@@ -358,7 +409,6 @@ function CreateDBRecord(param) {
 
 
     param.done(null, 'init_seq_done');
-
 
 
 }

@@ -129,6 +129,25 @@ queue.on('job enqueue', function(id, type){
         });
     }
 
+    if (result === 'genSemiAnnotation_done'){
+
+        kue.Job.get(id, function(err, job){
+            if (err) return;
+
+            // var disparity_job = queue.create('disparity', {
+            //     sequenceObj: job.data.sequenceObj
+            // });
+            //
+            // disparity_job.save();
+
+            job.remove(function(err){
+                if (err) throw err;
+                log.info('removed completed genSemiAnnotation job #%d', job.id);
+            });
+
+        });
+    }
+
     if (result === 'failed_decompress_done'){
 
         kue.Job.get(id, function(err, job){

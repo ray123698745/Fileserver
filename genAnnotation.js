@@ -72,6 +72,9 @@ var genTask = function (task, seq, annotationPath, h265, request) {
 
     cp(templatePath + 'Classes.ini', taskPath);
 
+    if (task == 'Moving-object')
+        cp('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/annotation/moving_object_init/' + seq.title + '_' + request.category + '.json', taskPath);
+
     var Annotate_ini = fs.readFileSync(templatePath + 'Annotate_' + task + '.ini', 'utf-8');
     Annotate_ini = Annotate_ini.replace('@json', seq.title + '_' + request.category); // Todo: edit json file name
 
@@ -165,32 +168,35 @@ queue.process('genAnnotation', function (job, done){
 
         // Insert sequence to DB
 
-        var options = {
-            url: insertURL,
-            json: true,
-            body: seq,
-            timeout: 1000000
-        };
+        // var options = {
+        //     url: insertURL,
+        //     json: true,
+        //     body: seq,
+        //     timeout: 1000000
+        // };
+        //
+        // request.post(options, function(error, response, body) {
+        //     // log.debug('update path response', response, 'body', body, 'error', error);
+        //     // log.debug('body: ', body, 'error: ', error);
+        //
+        //     if ( error ) {
+        //         log.error('Insert DB failed', error);
+        //
+        //
+        //     }
+        //     else {
+        //         if ( response.statusCode == 200 ) {
+        //             log.debug('Insert success', body);
+        //             done(null, 'genAnnotation_done');
+        //         }
+        //         else {
+        //             log.error('Insert failed', response.statusCode);
+        //         }
+        //     }
+        // });
 
-        request.post(options, function(error, response, body) {
-            // log.debug('update path response', response, 'body', body, 'error', error);
-            // log.debug('body: ', body, 'error: ', error);
+        done(null, 'genAnnotation_done'); // Todo: comment!
 
-            if ( error ) {
-                log.error('Insert DB failed', error);
-
-
-            }
-            else {
-                if ( response.statusCode == 200 ) {
-                    log.debug('Insert success', body);
-                    done(null, 'genAnnotation_done');
-                }
-                else {
-                    log.error('Insert failed', response.statusCode);
-                }
-            }
-        });
 
         log.debug('curSeqCount: ', curSeqCount);
         log.debug("annRemains: ",annRemains);
@@ -258,3 +264,109 @@ queue.process('genAnnotation', function (job, done){
 });
 
 
+queue.process('genSemiAnnotation', function (job, done){
+
+
+    var seq = job.data.sequenceObj;
+    var batchAnnCount = job.data.batchAnnCount;
+    var annRemains = job.data.annRemains;
+    var curSeqCount = job.data.curSeqCount;
+    //log.debug("annRemains: ",annRemains);
+    //log.debug("batchAnnCount: ",batchAnnCount);
+    //log.debug("curSeqCount: ",curSeqCount);
+
+    log.info("Processing genSemiAnnotation: " + seq.title);
+
+    if (genAnnotation){
+        // Create annotation request package
+        var annotationPath = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/annotation/temp/';
+
+        var h265 = seq.title + '_h265_v1_R.mp4';
+
+        mkdir(annotationPath);
+
+        cp('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/yuv/' + h265, annotationPath);
+
+        seq.cameras[0].annotation.forEach(function(request){
+
+            switch (request.category){
+                case "moving_object":
+                    genTask("Moving-object", seq, annotationPath, h265, request);
+                    break;
+                case "free_space":
+                    genTask("Road", seq, annotationPath, h265, request);
+                    genTask("Lane", seq, annotationPath, h265, request);
+                    break;
+                case "free_space_with_curb":
+                    genTask("Road-with-curb", seq, annotationPath, h265, request);
+                    genTask("Lane", seq, annotationPath, h265, request);
+                    break;
+            }
+
+        });
+
+        cd(annotationPath);
+        exec('tar -czf ' + '../' + seq.title + '.tar.gz ' + '*');
+
+        cp('../' + seq.title + '.tar.gz', batchPath);
+
+        cd(currentPath);
+        rm('-r', annotationPath);
+
+
+        done(null, 'genSemiAnnotation_done');
+
+
+        log.debug('curSeqCount: ', curSeqCount);
+        log.debug("batchAnnCount: ",batchAnnCount);
+
+        if (curSeqCount == batchAnnCount){
+            log.debug('tar whole batch');
+
+            var batchCreateTime = new Date().toISOString();
+            var batchName = batchCreateTime.substring(0, 19);
+            batchName = batchName.replace('T','-');
+            batchName = batchName.replace(/:/g, '');
+
+            mkdir(batchPath + '../' + batchName);
+            mv(batchPath + '*', batchPath + '../' + batchName);
+
+
+            cd(batchPath + '../' + batchName);
+            exec('tar -czf ' + '../' + batchName + '.tar.gz ' + '*');
+            cd(currentPath);
+            rm('-r', batchPath + '../' + batchName);
+
+
+            var query = {
+                batchName: batchName,
+                batchCreateTime: batchCreateTime
+            };
+
+            var options = {
+                url: batchURL,
+                json: true,
+                body: query,
+                timeout: 1000000
+            };
+
+            request.post(options, function(error, response, body) {
+
+                if ( error ) {
+                    log.error('Insert batch failed', error);
+                } else {
+                    if ( response.statusCode == 200 ) {
+                        log.debug('Insert batch success', body);
+                    }
+                    else {
+                        log.error('Insert batch failed', response.statusCode);
+                    }
+                }
+            });
+
+        }
+    } else {
+        done(null, 'genSemiAnnotation_done');
+    }
+
+});

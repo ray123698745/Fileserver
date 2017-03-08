@@ -4,9 +4,8 @@
   "insertURL": "http://10.1.3.32:3000/api/sequence/insert",
   "updateURL": "http://10.1.3.32:3000/api/sequence/update",
   "batchURL": "http://10.1.3.32:3000/api/annotation/insertBatch",
-  "csvPath": "/supercam/vol1/test_field/tag_csv/Import_with_Tag_ITA1_3.csv",
-  "keyArr": ["Clear","Rain","Cloudy","Snow","Hail","Bright","Indoor","Shadow","Night_with_street_light","Night_without_street_light","Dusk","Dawn","Back_lit","Tunnel","Urban","Suburban","Rural","Highway","Parking_lot","Full_lane_marking","Center_lane_only","No_lane_Marking","Special_lane_Marking","Accident","Pot_hole","No_vehicle","Few_vehicle","More_vehicle","Special_vehicle","No_Pedestrian","Few_Pedestrian","More_Pedestrian","Special_Pedestrian","Construction", "Intersection", "Round_about"],
-  "countryCode": "it",
-  "batchNum": {"country": "ITA", "num": 1}
-
+  "csvPath": "/supercam/vol1/test_field/tag_csv/Import_with_Tag_TW-7_20170307.csv",
+  "keyArr": ["Clear","Rain","Cloudy","Snow","Hail","Bright","Indoor","Shadow","Night_with_street_light","Night_without_street_light","Dusk","Dawn","Back_lit","Tunnel","Urban","Suburban","Rural","Highway","Parking_lot","Full_lane_marking","Center_lane_only","No_lane_Marking","Special_lane_Marking","Accident","Pot_hole","No_vehicle","Few_vehicle","More_vehicle", "Cyclist", "Special_vehicle","No_Pedestrian","Few_Pedestrian","More_Pedestrian","Special_Pedestrian","Construction", "Intersection", "Round_about"],
+  "countryCode": "tw",
+  "batchNum": {"country": "TW", "num": 7}
 }

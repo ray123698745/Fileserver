@@ -21,10 +21,97 @@ var keyArr = config.keyArr;
 var countryCode = config.countryCode;
 var allKeyword = [];
 var doIntegrityCheck = false;
+var queryUrl = 'http://localhost:3000/api/sequence/query';
+const express = require("express");
+const bodyParser = require("body-parser");
+const app = express();
+const request = require('request');
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+require('shelljs/global');
+const SITE = 'us';
+
+
+var server = app.listen(process.env.PORT || 3006, function () {
+    log.info("File server listening on port %s...", server.address().port);
+});
 
 
 genKeywords();
+// addSemiAnnotation();
 
+
+var getRootPathBySite = function (siteArray) {
+
+    for (var i=0; i < siteArray.length; i++) {
+        if (siteArray[i].site === SITE) {
+            return siteArray[i].root_path;
+        }
+    }
+};
+
+
+function addSemiAnnotation() {
+
+    query = { version: 4,
+        "batchNum.country": "US",
+        "batchNum.num": 2
+    };
+
+
+
+    var options = {
+        url: queryUrl,
+        json: true,
+        body: query,
+        timeout: 1000000
+    };
+
+    request.post(options, function(error, response, body) {
+        // log.debug('update path response', response, 'body', body, 'error', error);
+        // log.debug('body: ', body, 'error: ', error);
+
+        if ( error ) {
+            log.error('query DB failed', error);
+        }
+        else {
+            if ( response.statusCode == 200 ) {
+                log.debug('query success', body.length);
+
+                // var batchAnnCount = parseInt(body.length / 30);
+                var batchAnnCount = body.length;
+
+                // var annRemains = body.length % 30;
+                var curSeqCount = 0;
+
+
+                for (var i = 0; i < body.length; i++){
+
+
+                    log.debug('title:', body[i].title);
+
+                    curSeqCount++;
+
+                    mkdir('/supercam' + getRootPathBySite(body[i].file_location) + '/Front_Stereo/annotation/moving_object_init/');
+                    cp('/supercam/vol1/test_field/init_json/' + body[i].batchNum.country + '-' + body[i].batchNum.num + '/' + body[i].title + '_moving_object.json','/supercam' + getRootPathBySite(body[i].file_location) + '/Front_Stereo/annotation/moving_object_init/');
+
+
+                    var genSemiAnnotation = queue.create('genSemiAnnotation', {
+                        sequenceObj: body[i],
+                        batchAnnCount: batchAnnCount,
+                        annRemains: 0,
+                        curSeqCount: curSeqCount
+                    });
+
+                    genSemiAnnotation.save();
+                }
+            }
+            else {
+                log.error('query failed', response.statusCode);
+            }
+        }
+    });
+}
 
 
 function genKeywords() {
@@ -45,6 +132,7 @@ function genKeywords() {
 
             var content = line.substring(29);
             content = content.replace(/,/g, "");
+            content = content.replace(/ /g, "");
 
             var tempArr = [];
 
@@ -57,6 +145,9 @@ function genKeywords() {
                 title: parsedTitle,
                 keywords: tempArr
             });
+            log.debug('parsedTitle:', parsedTitle);
+            log.debug('tempArr:', tempArr);
+
 
         }
 
@@ -65,7 +156,7 @@ function genKeywords() {
 
         log.debug('closed');
 
-        integrityCheck();
+        // integrityCheck();
     });
 
 }

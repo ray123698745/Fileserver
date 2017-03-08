@@ -11,7 +11,7 @@ a11_sdk = Net::Telnet::new("Host" => host,
     "Prompt" => /[$%#>] /)
 
 a11_sdk.login("root") { |c| print c }
-result = a11_sdk.cmd("String" => comand).split("\n")
+result = a11_sdk.cmd("String" => command).split("\n")
 result.each { |line| print line }
 
 

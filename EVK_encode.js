@@ -101,7 +101,7 @@ queue.process('encode', function (job, done){
                 // }
 
                 if (seq.keywords[i] == 'Night_with_street_light' || seq.keywords[i] == 'Night_without_street_light') {
-                    ituner = 'night_compressed_sharp_LV1_stronge_CE_LV1.txt';
+                    ituner = 'night_compressed_sharp_LV1_stronge_CE_LV1_0.txt';
                     break;
                 }
 
