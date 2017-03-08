@@ -156,7 +156,7 @@ function genKeywords() {
 
         log.debug('closed');
 
-        // integrityCheck();
+        integrityCheck();
     });
 
 }
