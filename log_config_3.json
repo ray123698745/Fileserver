@@ -6,7 +6,7 @@
       },
       {
         "type": "file",
-        "filename": "logs/import_new.log",
+        "filename": "logs/import_new_3.log",
         "maxLogSize": 100000,
         "backups": 10
 
@@ -16,7 +16,7 @@
         "level": "ERROR",
         "appender": {
           "type": "file",
-          "filename": "logs/import_new_errors.log",
+          "filename": "logs/import_new_errors_3.log",
           "maxLogSize": 100000,
           "backups": 5
         }
@@ -30,7 +30,7 @@
       },
       {
         "type": "file",
-        "filename": "logs/init_seq.log",
+        "filename": "logs/init_seq_3.log",
         "maxLogSize": 100000,
         "backups": 10
 
@@ -40,7 +40,7 @@
         "level": "ERROR",
         "appender": {
           "type": "file",
-          "filename": "logs/init_seq_errors.log",
+          "filename": "logs/init_seq_errors_3.log",
           "maxLogSize": 100000,
           "backups": 5
         }
@@ -54,7 +54,7 @@
       },
       {
         "type": "file",
-        "filename": "logs/decompress.log",
+        "filename": "logs/decompress_3.log",
         "maxLogSize": 100000,
         "backups": 10
 
@@ -64,7 +64,7 @@
         "level": "ERROR",
         "appender": {
           "type": "file",
-          "filename": "logs/decompress_errors.log",
+          "filename": "logs/decompress_errors_3.log",
           "maxLogSize": 100000,
           "backups": 5
         }
@@ -78,7 +78,7 @@
       },
       {
         "type": "file",
-        "filename": "logs/EVK_encode.log",
+        "filename": "logs/EVK_encode_3.log",
         "maxLogSize": 100000,
         "backups": 10
 
@@ -88,7 +88,31 @@
         "level": "ERROR",
         "appender": {
           "type": "file",
-          "filename": "logs/EVK_encode_errors.log",
+          "filename": "logs/EVK_encode_errors_3.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "dewarp": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/dewarp_3.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/dewarp_errors_3.log",
           "maxLogSize": 100000,
           "backups": 5
         }
@@ -102,7 +126,7 @@
       },
       {
         "type": "file",
-        "filename": "logs/dewarp2HEVC.log",
+        "filename": "logs/dewarp2HEVC_3.log",
         "maxLogSize": 100000,
         "backups": 10
 
@@ -112,7 +136,7 @@
         "level": "ERROR",
         "appender": {
           "type": "file",
-          "filename": "logs/dewarp2HEVC_errors.log",
+          "filename": "logs/dewarp2HEVC_errors_3.log",
           "maxLogSize": 100000,
           "backups": 5
         }
@@ -126,7 +150,7 @@
       },
       {
         "type": "file",
-        "filename": "logs/genAnnotation.log",
+        "filename": "logs/genAnnotation_3.log",
         "maxLogSize": 100000,
         "backups": 10
 
@@ -136,7 +160,7 @@
         "level": "ERROR",
         "appender": {
           "type": "file",
-          "filename": "logs/genAnnotation_errors.log",
+          "filename": "logs/genAnnotation_errors_3.log",
           "maxLogSize": 100000,
           "backups": 5
         }
@@ -150,7 +174,7 @@
       },
       {
         "type": "file",
-        "filename": "logs/job_monitor.log",
+        "filename": "logs/job_monitor_3.log",
         "maxLogSize": 100000,
         "backups": 10
 
@@ -160,7 +184,7 @@
         "level": "ERROR",
         "appender": {
           "type": "file",
-          "filename": "logs/job_monitor_errors.log",
+          "filename": "logs/job_monitor_errors_3.log",
           "maxLogSize": 100000,
           "backups": 5
         }
@@ -185,6 +209,30 @@
         "appender": {
           "type": "file",
           "filename": "logs/test_field_errors.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "dewarp2HEVC_temp": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/dewarp2HEVC_temp.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/dewarp2HEVC_temp_errors.log",
           "maxLogSize": 100000,
           "backups": 5
         }

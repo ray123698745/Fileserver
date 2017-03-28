@@ -8,17 +8,21 @@ const queue = kue.createQueue({
         host: '10.1.3.32'
     }
 });
-const log4js = require('log4js');
-log4js.configure(require('./log_config.json').import_new);
-const log = log4js.getLogger('import_new');
+
 const fs = require('fs');
 const config = require('./config');
 const readline = require('readline');
-
 var newArrived = config.newArrived;
 var csvPath = config.csvPath;
 var keyArr = config.keyArr;
 var countryCode = config.countryCode;
+var volume = config.volume;
+
+var log_config = (volume === 'vol1' || volume === 'vol2') ? './log_config_1.json' :'./log_config_3.json';
+const log4js = require('log4js');
+log4js.configure(require(log_config).import_new);
+const log = log4js.getLogger('import_new');
+
 var allKeyword = [];
 var doIntegrityCheck = false;
 var queryUrl = 'http://localhost:3000/api/sequence/query';
@@ -31,14 +35,19 @@ app.use(bodyParser.urlencoded({ extended: true }));
 require('shelljs/global');
 const SITE = 'us';
 
+var init_job = (volume === 'vol1' || volume === 'vol2') ? 'init_job_1' :'init_job_3';
+var port = (volume === 'vol1' || volume === 'vol2') ? 3006 :3016;
 
-var server = app.listen(process.env.PORT || 3006, function () {
+log.debug('init_job:', init_job);
+
+
+var server = app.listen(process.env.PORT || port, function () {
     log.info("File server listening on port %s...", server.address().port);
 });
 
 
-genKeywords();
-// addSemiAnnotation();
+// genKeywords();
+addSemiAnnotation();
 
 
 var getRootPathBySite = function (siteArray) {
@@ -53,9 +62,11 @@ var getRootPathBySite = function (siteArray) {
 
 function addSemiAnnotation() {
 
-    query = { version: 4,
+    batchName = "US-4";
+
+    query = { version: 5,
         "batchNum.country": "US",
-        "batchNum.num": 2
+        "batchNum.num": 4
     };
 
 
@@ -100,7 +111,8 @@ function addSemiAnnotation() {
                         sequenceObj: body[i],
                         batchAnnCount: batchAnnCount,
                         annRemains: 0,
-                        curSeqCount: curSeqCount
+                        curSeqCount: curSeqCount,
+                        batchName: batchName
                     });
 
                     genSemiAnnotation.save();
@@ -156,7 +168,55 @@ function genKeywords() {
 
         log.debug('closed');
 
-        integrityCheck();
+
+        fs.readdir(newArrived + "L/", function(err, seqs) {
+            if (err){
+                log.error(err);
+            } else {
+
+                mkdir(newArrived + "L/removed");
+                mkdir(newArrived + "R/removed");
+
+                for (var i = 0; i < seqs.length; i++){
+                    if(seqs[i].charAt(0) == 'S'){
+
+                        var removed = true;
+                        var title = seqs[i].substring(0, 28);
+                        var parsedTitle = title.substring(11);
+                        parsedTitle = parsedTitle.replace(/:/g, "");
+                        parsedTitle = parsedTitle + "-" + countryCode;
+
+                        for (var j = 0; j < allKeyword.length; j++){
+                            if (allKeyword[j].title == parsedTitle) {
+                                removed = false;
+                                log.info('Import: ' + title);
+
+                                var init_seq = queue.create(init_job, {
+                                    seq: seqs[i],
+                                    allKeyword :allKeyword,
+                                    batchAnnCount: 0,
+                                    annRemains: 0,
+                                    curSeqCount: 0
+                                });
+                                init_seq.save();
+
+                                break;
+                            }
+                        }
+
+                        if (removed){
+                            log.debug("removed:", seqs[i]);
+                            mv(newArrived + "L/" + seqs[i], newArrived + "L/removed");
+                            mv(newArrived + "R/" + seqs[i], newArrived + "R/removed");
+                        }
+                    }
+                }
+
+                // integrityCheck();
+
+            }}
+        );
+
     });
 
 }

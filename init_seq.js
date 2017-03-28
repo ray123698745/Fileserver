@@ -3,7 +3,7 @@
  */
 var importSwitch = {
     parseSensor: true,
-    country: 'Italy',
+    country: 'Taiwan',
     parseSensorCallback: true,
     genThumb: true,
     setupFolder: true,
@@ -18,9 +18,13 @@ const queue = kue.createQueue({
         host: '10.1.3.32'
     }
 });
+const config = require('./config');
+var volume = config.volume;
+
+var log_config = (volume === 'vol1' || volume === 'vol2') ? './log_config_1.json' :'./log_config_3.json';
 const log4js = require('log4js');
 // log4js.configure('log_config.json'.init, { reloadSecs: 300 });
-log4js.configure(require('./log_config.json').init_seq);
+log4js.configure(require(log_config).init_seq);
 const log = log4js.getLogger('init_seq');
 const fs = require('fs');
 const express = require("express");
@@ -29,7 +33,6 @@ const app = express();
 const request = require('request');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-const config = require('./config');
 const readline = require('readline');
 const GoogleMapsAPI = require('googlemaps');
 require('shelljs/global');
@@ -43,6 +46,11 @@ var batchNum = config.batchNum;
 var insertURL = config.insertURL;
 var currentPath = pwd();
 
+var init_job = (volume === 'vol1' || volume === 'vol2') ? 'init_job_1' :'init_job_3';
+var init_job_done = (volume === 'vol1' || volume === 'vol2') ? 'init_job_1_done' :'init_job_3_done';
+var decompress_job = (volume === 'vol1' || volume === 'vol2') ? 'decompress_job_1' :'decompress_job_3';
+
+log.debug('init_job:', init_job);
 
 // var server = app.listen(process.env.PORT || 3008, function () {
 //     log.info("File server listening on port %s...", server.address().port);
@@ -59,7 +67,7 @@ var publicConfig = {
 };
 var gmAPI = new GoogleMapsAPI(publicConfig);
 
-queue.process('init_seq', function (job, done){
+queue.process(init_job, function (job, done){
 
     parseSensor(job.data.seq, done, job.data.allKeyword, job.data.batchAnnCount, job.data.annRemains, job.data.curSeqCount);
 
@@ -214,11 +222,12 @@ function parseSensorCallback(param) {
 
     param.captureTime = seq.substring(9);
 
-    if (importSwitch.parseSensorCallback){
-        param.frameNum = ls(newArrived + "R/" + seq + '/*.raw').length;
-    }else {
-        param.frameNum = 900;
-    }
+    // if (importSwitch.parseSensorCallback){
+    //     param.frameNum = ls(newArrived + "R/" + seq + '/*.raw').length;
+    // }else {
+    //     param.frameNum = 900;
+    // }
+    param.frameNum = 900;
 
 
     var title = seq.substring(11);
@@ -236,8 +245,8 @@ function genThumb(param) {
     var seq = param.seq;
 
     if (importSwitch.genThumb){
-        exec('ffmpeg -i ' + newArrived + 'L/' + seq + '/video_h264.mp4 -ss 00:00:03.000 -vframes 1 -vf scale=-1:100 ' + newArrived + 'L/' + seq + '/temp_thumb.jpg',{silent:true});
-        exec('ffmpeg -i ' + newArrived + 'L/' + seq + '/temp_thumb.jpg -vframes 1 -vf crop=100:100 ' + newArrived + 'L/' + seq + '/thumb.jpg', {silent:true});
+        exec('ffmpeg -y -i ' + newArrived + 'L/' + seq + '/video_h264.mp4 -ss 00:00:03.000 -vframes 1 -vf scale=-1:100 ' + newArrived + 'L/' + seq + '/temp_thumb.jpg',{silent:true});
+        exec('ffmpeg -y -i ' + newArrived + 'L/' + seq + '/temp_thumb.jpg -vframes 1 -vf crop=100:100 ' + newArrived + 'L/' + seq + '/thumb.jpg', {silent:true});
         rm(newArrived + 'L/' + seq + '/temp_thumb.jpg');
     }
 
@@ -329,7 +338,7 @@ function CreateDBRecord(param) {
         capture_time: param.captureTime,
         frame_number: 900,
         usage: "Training",
-        file_location: [{site: "us", root_path: "/vol1/" + param.title}, {site: "it", root_path: ""}],
+        file_location: [{site: "us", root_path: "/" + volume + "/" + param.title}, {site: "it", root_path: ""}],
         no_annotation: false,
         cameras: [
             {
@@ -398,17 +407,17 @@ function CreateDBRecord(param) {
 
 
 
-    var decompress_job = queue.create('decompress', {
+    var decompress = queue.create(decompress_job, {
         sequenceObj: Sequence,
         batchAnnCount: param.batchAnnCount,
         annRemains: param.annRemains,
         curSeqCount: param.curSeqCount
     });
 
-    decompress_job.save();
+    decompress.save();
 
 
-    param.done(null, 'init_seq_done');
+    param.done(null, init_job_done);
 
 
 }

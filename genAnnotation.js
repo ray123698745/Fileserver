@@ -15,7 +15,7 @@ const queue = kue.createQueue({
 const express = require("express");
 const bodyParser = require("body-parser");
 const log4js = require('log4js');
-log4js.configure(require('./log_config.json').genAnnotation);
+log4js.configure(require('./log_config_1.json').genAnnotation);
 const log = log4js.getLogger('genAnnotation');
 const app = express();
 const fs = require('fs');
@@ -324,9 +324,11 @@ queue.process('genSemiAnnotation', function (job, done){
             log.debug('tar whole batch');
 
             var batchCreateTime = new Date().toISOString();
-            var batchName = batchCreateTime.substring(0, 19);
-            batchName = batchName.replace('T','-');
-            batchName = batchName.replace(/:/g, '');
+            // var batchName = batchCreateTime.substring(0, 19);
+            // batchName = batchName.replace('T','-');
+            // batchName = batchName.replace(/:/g, '');
+            var batchName = job.data.batchName;
+
 
             mkdir(batchPath + '../' + batchName);
             mv(batchPath + '*', batchPath + '../' + batchName);

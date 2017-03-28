@@ -1,0 +1,242 @@
+{
+  "import_new": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/import_new_1.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/import_new_errors_1.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "init_seq": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/init_seq_1.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/init_seq_errors_1.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "decompress": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/decompress_1.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/decompress_errors_1.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "EVK_encode": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/EVK_encode_1.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/EVK_encode_errors_1.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "dewarp": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/dewarp_1.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/dewarp_errors_1.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "dewarp2HEVC": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/dewarp2HEVC_1.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/dewarp2HEVC_errors_1.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "genAnnotation": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/genAnnotation_1.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/genAnnotation_errors_1.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "job_monitor": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/job_monitor_1.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/job_monitor_errors_1.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "test_field": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/test_field.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/test_field_errors.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  },
+  "dewarp2HEVC_temp": {
+    "appenders": [
+      {
+        "type": "console"
+      },
+      {
+        "type": "file",
+        "filename": "logs/dewarp2HEVC_temp.log",
+        "maxLogSize": 100000,
+        "backups": 10
+
+      },
+      {
+        "type": "logLevelFilter",
+        "level": "ERROR",
+        "appender": {
+          "type": "file",
+          "filename": "logs/dewarp2HEVC_temp_errors.log",
+          "maxLogSize": 100000,
+          "backups": 5
+        }
+      }
+    ]
+  }
+}

@@ -8,7 +8,7 @@ const fs = require('fs');
 const GoogleMapsAPI = require('googlemaps');
 
 const log4js = require('log4js');
-log4js.configure(require('./log_config.json').decompress);
+log4js.configure(require('./log_config_1.json').test_field);
 const log = log4js.getLogger('test_field');
 require('shelljs/global');
 const express = require("express");
@@ -22,6 +22,8 @@ const spawn = require('child_process').spawn;
 const app = express();
 var url = 'http://localhost:3000/api/sequence/updateUnfiltered';
 var queryUrl = 'http://localhost:3000/api/sequence/query';
+const SITE = 'us';
+var volume = config.volume;
 
 
 app.use(bodyParser.json());
@@ -34,14 +36,121 @@ var server = app.listen(process.env.PORT || 3020, function () {
 
 
 
+var getRootPathBySite = function (siteArray) {
 
-
-
-query = { version: 4,
-    "batchNum.country": "US",
-    "batchNum.num": 2
+    for (var i=0; i < siteArray.length; i++) {
+        if (siteArray[i].site === SITE) {
+            return siteArray[i].root_path;
+        }
+    }
 };
 
+
+// var init_job_done = (volume === 'vol1' || volume === 'vol2') ? 'init_job_1_done' :'init_job_3_done';
+//
+//
+// log.debug(init_job_done);
+
+
+// var cmd = '/supercam/vol1/test_field/cat.sh \'/supercam/vol1/new_arrived/TW-9/L/removed/SuperCam-2017-03-10-08:34:39/*.raw\' \'/supercam/vol1/new_arrived/TW-9/L/removed/SuperCam-2017-03-10-08:34:39/cat.raw\'';
+// exec(cmd, {async:true}, function (code, stdout, stderr) {
+//
+//     if (code == 0) {
+//         log.debug("done!");
+//     }
+// });
+
+
+
+// cat('/supercam/vol3/new_arrived/US-4/L/SuperCam-2017-03-09-14:27:30/*.raw').to('/supercam/vol3/new_arrived/US-4/L/SuperCam-2017-03-09-14:27:30/cat.raw');
+// log.debug("done!");
+
+
+// var writeStream = fs.createWriteStream('/supercam/vol1/test_field/cat.txt', { flags : 'w' });
+// var rstream = fs.createReadStream(cat('/supercam/vol1/test_field/*.txt'));
+// // var readStream = cat('/supercam/vol1/test_field/*.txt');
+//
+// rstream.pipe(writeStream);
+// writeStream.on('close', function () {
+//     console.log('All done!');
+// });
+
+
+// fs.writeFile('/supercam/vol3/new_arrived/US-4/L/SuperCam-2017-03-09-14:27:30/cat.raw', cat('/supercam/vol3/new_arrived/US-4/L/SuperCam-2017-03-09-14:27:30/*.raw'), function (err) {
+//     if (err) {
+//         log.debug("err: " + err);
+//
+//     } throw err;
+// });
+
+// fs.writeFile('/supercam/vol1/test_field/cat.txt', cat('/supercam/vol1/test_field/*.txt'), function (err) {
+//     if (err) {
+//         log.debug("err: " + err);
+//         throw err;
+//     } else {
+//         log.debug("done!");
+//     }
+// });
+
+// var str = cat('file*.txt');
+
+
+
+
+
+
+
+
+
+
+
+
+
+// var cat = spawn('cat', ['/supercam/vol3/new_arrived/US-4/L/SuperCam-2017-03-09-14:27:30/*.raw']);
+// // var cat = spawn('cat', ['/supercam/vol1/test_field/test1', '/supercam/vol1/test_field/test2']);
+//
+//
+// cat.stderr.on('data',
+//     function (data) {
+//         log.error('stderr: ' + data);
+//     }
+// );
+//
+// cat.stdout.on('data', function(data) {
+//
+//     log.debug("data: " + data);
+//
+//     fs.writeFile('/supercam/vol3/new_arrived/US-4/L/SuperCam-2017-03-09-14:27:30/cat.raw', data, function (err) {
+//         if (err) {
+//             log.debug("err: " + err);
+//
+//         } throw err;
+//     });
+// });
+//
+//
+// cat.on('exit', function (exitCode) {
+//     log.info("Child exited with code: " + exitCode);
+//
+//     if (exitCode === 0) {
+//
+//     }
+// });
+
+// var child = spawn('cat', ['telnet.rb', cmd, '192.168.240.' + local_ip]);
+
+
+
+
+
+query = {
+    version: 5,
+    capture_time:{"$gte": '2017-03-14-17:00:00', "$lte": '2017-03-14-18:28:30'}
+};
+
+// query = {
+//     version:null
+// };
 
 
 var options = {
@@ -64,40 +173,29 @@ request.post(options, function(error, response, body) {
 
             for (var i = 0; i < body.length; i++){
 
-                exec('tar -C /dump/algo1/Ray/SF_json/ -xzf /supercam/vol1/' + body[i].title + '/Front_Stereo/annotation/' + body[i].title + '.tar.gz ' + body[i].title + '_h265_v1_R.mp4 ' + body[i].title + '_Moving-object');
-                mv('/dump/algo1/Ray/SF_json/' + body[i].title + '_h265_v1_R.mp4', '/dump/algo1/Ray/SF_json/' + body[i].title + '_Moving-object');
-                // log.debug('title:', body[i].title);
+                log.debug('process', body[i].title);
 
-                // cp('/supercam/vol1/'+body[i].title+'/Front_Stereo/R/yuv/'+body[i].title+'_h265_v1_R.mp4','/supercam/vol1/test_field/0221_reencode/');
+                var encode = queue.create('encode_job_1', {
+                    sequenceObj: body[i],
+                    channel: 'left',
+                    isInitEncode: true,
+                    batchAnnCount: 0,
+                    annRemains: 0,
+                    curSeqCount: 0
+                });
 
+                encode.save();
 
-                // rm('-r','/supercam/vol1/'+body[i].title+'/Front_Stereo/R/yuv/*');
-                // rm('-r','/supercam/vol1/'+body[i].title+'/Front_Stereo/L/yuv/*');
+                encode = queue.create('encode_job_1', {
+                    sequenceObj: body[i],
+                    channel: 'right',
+                    isInitEncode: true,
+                    batchAnnCount: 0,
+                    annRemains: 0,
+                    curSeqCount: 0
+                });
 
-
-                // body[i].keywords = 'Bright';
-                //
-                // var encode_job = queue.create('encode', {
-                //     sequenceObj: body[i],
-                //     channel: 'left',
-                //     isInitEncode: true,
-                //     batchAnnCount: 1,
-                //     annRemains: 1,
-                //     curSeqCount: 1
-                // });
-                //
-                // encode_job.save();
-                //
-                // encode_job = queue.create('encode', {
-                //     sequenceObj: body[i],
-                //     channel: 'right',
-                //     isInitEncode: true,
-                //     batchAnnCount: 1,
-                //     annRemains: 1,
-                //     curSeqCount: 1
-                // });
-                //
-                // encode_job.save();
+                encode.save();
 
             }
 

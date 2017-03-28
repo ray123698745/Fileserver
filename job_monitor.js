@@ -9,9 +9,23 @@ const queue = kue.createQueue({
         host: '10.1.3.32'
     }
 });
+
+const config = require('./config');
+var volume = config.volume;
+
+var log_config = (volume === 'vol1' || volume === 'vol2') ? './log_config_1.json' :'./log_config_3.json';
 const log4js = require('log4js');
-log4js.configure(require('./log_config.json').job_monitor);
+log4js.configure(require(log_config).job_monitor);
 const log = log4js.getLogger('job_monitor');
+
+var init_job_done = (volume === 'vol1' || volume === 'vol2') ? 'init_job_1_done' :'init_job_3_done';
+var decompress_job_done = (volume === 'vol1' || volume === 'vol2') ? 'decompress_job_1_done' :'decompress_job_3_done';
+var encode_job_done = (volume === 'vol1' || volume === 'vol2') ? 'encode_job_1_done' :'encode_job_3_done';
+var dewarp_job_done = (volume === 'vol1' || volume === 'vol2') ? 'dewarp_job_1_done' :'dewarp_job_3_done';
+var cat_job_done = (volume === 'vol1' || volume === 'vol2') ? 'cat_job_1_done' :'cat_job_3_done';
+var HEVC_job_done = (volume === 'vol1' || volume === 'vol2') ? 'HEVC_job_1_done' :'HEVC_job_3_done';
+var genPreviewImg_job_done = (volume === 'vol1' || volume === 'vol2') ? 'genPreviewImg_job_1_done' :'genPreviewImg_job_3_done';
+
 
 queue.on('job enqueue', function(id, type){
 
@@ -19,20 +33,20 @@ queue.on('job enqueue', function(id, type){
 
 }).on('job complete', function(id, result){
 
-    if (result === 'init_seq_done'){
+    if (result === init_job_done){
 
         kue.Job.get(id, function(err, job){
             if (err) return;
 
             job.remove(function(err){
                 if (err) throw err;
-                log.info('removed completed init_seq job #%d', job.id);
+                log.info(init_job_done + ' #%d', job.id);
             });
 
         });
     }
 
-    if (result === 'decompress_done'){
+    if (result === decompress_job_done){
 
         kue.Job.get(id, function(err, job){
             if (err) return;
@@ -40,71 +54,71 @@ queue.on('job enqueue', function(id, type){
 
             job.remove(function(err){
                 if (err) throw err;
-                log.info('removed completed decompress job #%d', job.id);
+                log.info(decompress_job_done + ' #%d', job.id);
             });
 
         });
     }
 
-    if (result === 'encode_done'){
+    if (result === encode_job_done){
 
         kue.Job.get(id, function(err, job){
             if (err) return;
 
             job.remove(function(err){
                 if (err) throw err;
-                log.info('removed completed encode job #%d', job.id);
+                log.info(encode_job_done + ' #%d', job.id);
             });
         });
     }
 
-    if (result === 'dewarp_done'){
+    if (result === dewarp_job_done){
 
         kue.Job.get(id, function(err, job){
             if (err) return;
 
             job.remove(function(err){
                 if (err) throw err;
-                log.info('removed completed dewarp job #%d', job.id);
-            });
-
-        });
-    }
-
-    if (result === 'cat_done'){
-
-        kue.Job.get(id, function(err, job){
-            if (err) return;
-
-            job.remove(function(err){
-                if (err) throw err;
-                log.info('removed completed cat job #%d', job.id);
+                log.info(dewarp_job_done + ' #%d', job.id);
             });
 
         });
     }
 
-    if (result === 'encode_HEVC_done'){
+    if (result === cat_job_done){
 
         kue.Job.get(id, function(err, job){
             if (err) return;
 
             job.remove(function(err){
                 if (err) throw err;
-                log.info('removed completed encode_HEVC job #%d', job.id);
+                log.info(cat_job_done + ' #%d', job.id);
+            });
+
+        });
+    }
+
+    if (result === HEVC_job_done){
+
+        kue.Job.get(id, function(err, job){
+            if (err) return;
+
+            job.remove(function(err){
+                if (err) throw err;
+                log.info(HEVC_job_done + ' #%d', job.id);
             });
         });
 
     }
 
-    if (result === 'genPreviewImg_done'){
+    if (result === genPreviewImg_job_done){
 
         kue.Job.get(id, function(err, job){
             if (err) return;
 
             job.remove(function(err){
                 if (err) throw err;
-                log.info('removed completed genPreviewImg job #%d', job.id);
+                log.info(genPreviewImg_job_done + ' #%d', job.id);
             });
         });
 

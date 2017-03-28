@@ -15,18 +15,41 @@ const queue = kue.createQueue({
     }
 });
 const spawn = require('child_process').spawn;
-const log4js = require('log4js');
-log4js.configure(require('./log_config.json').decompress);
-const log = log4js.getLogger('decompress');
+
 const fs = require('fs');
 const config = require('./config');
 require('shelljs/global');
 
+var volume = config.volume;
 
+var log_config = (volume === 'vol1' || volume === 'vol2') ? './log_config_1.json' :'./log_config_3.json';
+const log4js = require('log4js');
+log4js.configure(require(log_config).decompress);
+const log = log4js.getLogger('decompress');
+
+const SITE = 'us';
 const THREADS = 8;
 
 
-queue.process('decompress', function (job, done){
+var decompress_job = (volume === 'vol1' || volume === 'vol2') ? 'decompress_job_1' :'decompress_job_3';
+var decompress_job_done = (volume === 'vol1' || volume === 'vol2') ? 'decompress_job_1_done' :'decompress_job_3_done';
+var encode_job = (volume === 'vol1' || volume === 'vol2') ? 'encode_job_1' :'encode_job_3';
+
+
+
+
+
+var getRootPathBySite = function (siteArray) {
+
+    for (var i=0; i < siteArray.length; i++) {
+        if (siteArray[i].site === SITE) {
+            return siteArray[i].root_path;
+        }
+    }
+};
+
+
+queue.process(decompress_job, function (job, done){
 
 
     log.info("Processing decompress: ", job.data.sequenceObj.title);
@@ -35,8 +58,8 @@ queue.process('decompress', function (job, done){
     if (importSwitch.decompress){
         var seq = job.data.sequenceObj;
         var frameNum = seq.frame_number;
-        var rightRawDir = '/mnt/supercam/' + seq.title + '/Front_Stereo/R/raw';
-        var leftRawDir = '/mnt/supercam/' + seq.title + '/Front_Stereo/L/raw';
+        var rightRawDir = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/raw';
+        var leftRawDir = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/L/raw';
         var divideFrame = parseInt(frameNum / THREADS);
         var startFrame = 0;
         var endFrame = divideFrame;
@@ -82,7 +105,7 @@ queue.process('decompress', function (job, done){
                         log.info("Done decompress sequence: " + seq.title);
                         log.info("End: " + new Date());
 
-                        var encode_job = queue.create('encode', {
+                        var encode = queue.create(encode_job, {
                             sequenceObj: seq,
                             channel: 'left',
                             isInitEncode: true,
@@ -91,9 +114,9 @@ queue.process('decompress', function (job, done){
                             curSeqCount: job.data.curSeqCount
                         });
 
-                        encode_job.save();
+                        encode.save();
 
-                        encode_job = queue.create('encode', {
+                        encode = queue.create(encode_job, {
                             sequenceObj: seq,
                             channel: 'right',
                             isInitEncode: true,
@@ -102,9 +125,9 @@ queue.process('decompress', function (job, done){
                             curSeqCount: job.data.curSeqCount
                         });
 
-                        encode_job.save();
+                        encode.save();
 
-                        done(null, 'decompress_done');
+                        done(null, decompress_job_done);
                     }
                 } else {
                     log.error("decompress sequence " + seq.title + ' failed. Exit code: ' + exitCode);
@@ -117,7 +140,7 @@ queue.process('decompress', function (job, done){
                             annRemains: job.data.annRemains,
                             curSeqCount: job.data.curSeqCount
                         });
-                        done(null, 'decompress_done');
+                        done(null, decompress_job_done);
                     }
 
                 }
@@ -135,7 +158,7 @@ queue.process('decompress', function (job, done){
                         log.info("Done decompress sequence: " + seq.title);
                         log.info("End: " + new Date());
 
-                        var encode_job = queue.create('encode', {
+                        var encode = queue.create(encode_job, {
                             sequenceObj: seq,
                             channel: 'left',
                             isInitEncode: true,
@@ -144,9 +167,9 @@ queue.process('decompress', function (job, done){
                             curSeqCount: job.data.curSeqCount
                         });
 
-                        encode_job.save();
+                        encode.save();
 
-                        encode_job = queue.create('encode', {
+                        encode = queue.create(encode_job, {
                             sequenceObj: seq,
                             channel: 'right',
                             isInitEncode: true,
@@ -155,10 +178,10 @@ queue.process('decompress', function (job, done){
                             curSeqCount: job.data.curSeqCount
                         });
 
-                        encode_job.save();
+                        encode.save();
 
 
-                        done(null, 'decompress_done');
+                        done(null, decompress_job_done);
                     }
                 } else {
                     log.error("decompress sequence " + seq.title + ' failed. Exit code: ' + exitCode);
@@ -170,7 +193,7 @@ queue.process('decompress', function (job, done){
                             annRemains: job.data.annRemains,
                             curSeqCount: job.data.curSeqCount
                         });
-                        done(null, 'decompress_done');
+                        done(null, decompress_job_done);
                     }
                 }
             });
@@ -181,7 +204,7 @@ queue.process('decompress', function (job, done){
         }
 
     } else {
-        var encode_job = queue.create('encode', {
+        var encode = queue.create(encode_job, {
             sequenceObj: job.data.sequenceObj,
             channel: 'left',
             isInitEncode: true,
@@ -190,9 +213,9 @@ queue.process('decompress', function (job, done){
             curSeqCount: job.data.curSeqCount
         });
 
-        encode_job.save();
+        encode.save();
 
-        encode_job = queue.create('encode', {
+        encode = queue.create(encode_job, {
             sequenceObj: job.data.sequenceObj,
             channel: 'right',
             isInitEncode: true,
@@ -201,8 +224,8 @@ queue.process('decompress', function (job, done){
             curSeqCount: job.data.curSeqCount
         });
 
-        encode_job.save();
-        done(null, 'decompress_done');
+        encode.save();
+        done(null, decompress_job_done);
     }
 
 });

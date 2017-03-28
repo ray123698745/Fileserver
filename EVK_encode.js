@@ -11,15 +11,29 @@ const queue = kue.createQueue({
     }
 });
 const spawn = require('child_process').spawn;
-const log4js = require('log4js');
-log4js.configure(require('./log_config.json').EVK_encode);
-const log = log4js.getLogger('EVK_encode');
+
 const fs = require('fs');
 require('shelljs/global');
 const telnet = require('telnet-client');
+const config = require('./config');
+var volume = config.volume;
+var log_config = (volume === 'vol1' || volume === 'vol2') ? './log_config_1.json' :'./log_config_3.json';
+
+const log4js = require('log4js');
+log4js.configure(require(log_config).EVK_encode);
+const log = log4js.getLogger('EVK_encode');
+
+const EVKNUM = 5;
+
+var encode_job = (volume === 'vol1' || volume === 'vol2') ? 'encode_job_1' :'encode_job_3';
+var encode_job_done = (volume === 'vol1' || volume === 'vol2') ? 'encode_job_1_done' :'encode_job_3_done';
+var dewarp_job = (volume === 'vol1' || volume === 'vol2') ? 'dewarp_job_1' :'dewarp_job_3';
+
+var ip = (volume === 'vol1' || volume === 'vol2') ? 10 : 15;
 
 
-const EVKNUM = 10;
+
+
 const SITE = 'us';
 
 var title = "";
@@ -35,7 +49,7 @@ var getRootPathBySite = function (siteArray) {
 };
 
 
-queue.process('encode', function (job, done){
+queue.process(encode_job, function (job, done){
 
     log.info('Processing encode ' + job.data.sequenceObj.title + ' ' + job.data.channel);
     log.info("Start: " + new Date());
@@ -74,15 +88,18 @@ queue.process('encode', function (job, done){
             channelAbr = 'R';
         }
 
+        // rm('-r','/supercam/vol2/' + seq.title + '/Front_Stereo/' + channelAbr + '/yuv/*');
 
-        var frameNum = seq.frame_number;
-        // var frameNum = 900;
+        // var frameNum = seq.frame_number;
+        var frameNum = 900;
         var divideFrame = parseInt(frameNum / EVKNUM);
         var startFrame = 0;
         var doneCount = 0;
-        var ip = 10;
         var itunerPath = "/home/amba/ini/";
         var serverItunerPath = "/supercam/vol1/ini/";
+        var local_ip = ip;
+        // log.debug("frameNum: ",frameNum);
+        // log.debug("divideFrame: ",divideFrame);
 
 
         mkdir(serverOutputPath);
@@ -101,9 +118,14 @@ queue.process('encode', function (job, done){
                 // }
 
                 if (seq.keywords[i] == 'Night_with_street_light' || seq.keywords[i] == 'Night_without_street_light') {
-                    ituner = 'night_compressed_sharp_LV1_stronge_CE_LV1_0.txt';
+                    ituner = 'night_compressed_sharp_LV1_stronge_CE_LV1_dgain.txt';
                     break;
                 }
+
+                // if (seq.keywords[i] == 'Dawn' || seq.keywords[i] == 'Dusk') {
+                //     ituner = 'dawn_compressed_sharp_LV1_stronge_CE_LV1.txt';
+                //     break;
+                // }
 
                 // Default ituner if no keyword match
                 ituner = 'day_compressed_stronge_CE_LV1.txt';
@@ -137,7 +159,7 @@ queue.process('encode', function (job, done){
 
 
 
-            var child = spawn('ruby', ['telnet.rb', cmd, '192.168.240.' + ip]);
+            var child = spawn('ruby', ['telnet.rb', cmd, '192.168.240.' + local_ip]);
 
             // child.stdout.on('data',
             //     function (data) {
@@ -223,7 +245,7 @@ queue.process('encode', function (job, done){
                         //     // updateDB = true;
                         // }
 
-                        var dewarp_job = queue.create('dewarp', {
+                        var dewarp = queue.create(dewarp_job, {
                             sequenceObj: seq,
                             channel: channel,
                             ituner: ituner,
@@ -233,7 +255,7 @@ queue.process('encode', function (job, done){
                             curSeqCount: job.data.curSeqCount
                         });
 
-                        dewarp_job.save();
+                        dewarp.save();
 
                         // var tar_yuv_job = queue.create('tar_yuv', {
                         //     yuvPath: yuvPath,
@@ -244,7 +266,7 @@ queue.process('encode', function (job, done){
                         //
                         // tar_yuv_job.save();
 
-                        done(null, 'encode_done');
+                        done(null, encode_job_done);
                     }
                 } else {
                     log.error("encode failed with code: " + exitCode);
@@ -254,11 +276,11 @@ queue.process('encode', function (job, done){
             });
 
             startFrame = startFrame + divideFrame;
-            ip++;
+            local_ip++;
         }
     } else {
 
-        var dewarp_job = queue.create('dewarp', {
+        var dewarp = queue.create(dewarp_job, {
             sequenceObj: seq,
             channel: channel,
             ituner: ituner,
@@ -268,9 +290,9 @@ queue.process('encode', function (job, done){
             curSeqCount: job.data.curSeqCount
         });
 
-        dewarp_job.save();
+        dewarp.save();
 
-        done(null, 'encode_done');
+        done(null, encode_job_done);
     }
 
 

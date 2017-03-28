@@ -20,21 +20,33 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 const request = require('request');
-const log4js = require('log4js');
-log4js.configure(require('./log_config.json').dewarp2HEVC);
-const log = log4js.getLogger('dewarp2HEVC');
+
 const fs = require('fs');
 const config = require('./config');
 const readline = require('readline');
 require('shelljs/global');
 
+
 const SITE = 'us';
 var insertURL = config.insertURL;
+var volume = config.volume;
 
-var server = app.listen(process.env.PORT || 3005, function () {
+var log_config = (volume === 'vol1' || volume === 'vol2') ? './log_config_1.json' :'./log_config_3.json';
+const log4js = require('log4js');
+log4js.configure(require(log_config).dewarp2HEVC);
+const log = log4js.getLogger('dewarp2HEVC');
+var port = (volume === 'vol1' || volume === 'vol2') ? 3005 :3015;
+
+var server = app.listen(process.env.PORT || port, function () {
     log.info("File server listening on port %s...", server.address().port);
 });
 
+var cat_job = (volume === 'vol1' || volume === 'vol2') ? 'cat_job_1' :'cat_job_3';
+var cat_job_done = (volume === 'vol1' || volume === 'vol2') ? 'cat_job_1_done' :'cat_job_3_done';
+var HEVC_job = (volume === 'vol1' || volume === 'vol2') ? 'HEVC_job_1' :'HEVC_job_3';
+var HEVC_job_done = (volume === 'vol1' || volume === 'vol2') ? 'HEVC_job_1_done' :'HEVC_job_3_done';
+var genPreviewImg_job = (volume === 'vol1' || volume === 'vol2') ? 'genPreviewImg_job_1' :'genPreviewImg_job_3';
+var genPreviewImg_job_done = (volume === 'vol1' || volume === 'vol2') ? 'genPreviewImg_job_1_done' :'genPreviewImg_job_3_done';
 
 var getRootPathBySite = function (siteArray) {
 
@@ -45,85 +57,9 @@ var getRootPathBySite = function (siteArray) {
     }
 };
 
-queue.process('dewarp', function (job, done){
-
-    if(importSwitch.dewarp){
-
-        log.info("Processing dewarp: ", job.data.sequenceObj.title, job.data.channel);
-        log.info("Start: " + new Date());
-
-        var seq = job.data.sequenceObj;
-        var channel = job.data.channel;
-        var versionNum = job.data.versionNum;
 
 
-        var cmd = '';
-        var inputDir = '';
-        var outputDir = '';
-
-        if (channel == 'left'){
-
-            inputDir = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/L/yuv/' + seq.title + '_yuv_v' + versionNum + '_L/';
-            outputDir = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/L/yuv/dewarp/';
-            cmd = 'dewarp-1.0.393 -i ' + inputDir + 'f_%010d.yuv -o ' + outputDir+ 'f_%010d.yuv -l /supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/L/cali_data/RECT_Left.blt -j 8';
-            mkdir('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/L/yuv/dewarp');
-
-        } else {
-            inputDir = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/yuv/' + seq.title + '_yuv_v' + versionNum + '_R/';
-            outputDir = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/yuv/dewarp/';
-            cmd = 'dewarp-1.0.393 -i ' + inputDir + 'f_%010d.yuv -o ' + outputDir + 'f_%010d.yuv -l /supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/cali_data/RECT_Right.blt -j 8';
-            mkdir('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/yuv/dewarp');
-        }
-
-        exec(cmd, {async:true}, function (code, stdout, stderr) {
-
-            if (code == 0) {
-
-                log.info('dewarp completed: ' + seq.title + ' ' + job.data.channel);
-
-                rm('-r', inputDir);
-                mv(outputDir, inputDir);
-
-                var cat_job = queue.create('cat', {
-                    sequenceObj: job.data.sequenceObj,
-                    channel: job.data.channel,
-                    ituner: job.data.ituner,
-                    versionNum: job.data.versionNum,
-                    batchAnnCount: job.data.batchAnnCount,
-                    annRemains: job.data.annRemains,
-                    curSeqCount: job.data.curSeqCount
-                });
-
-                cat_job.save();
-
-                done(null, 'dewarp_done');
-
-
-            } else {
-                log.error("dewarp command failed. stderr: " + stderr);
-            }
-        });
-
-
-    } else {
-        var cat_job = queue.create('cat', {
-            sequenceObj: job.data.sequenceObj,
-            channel: job.data.channel,
-            ituner: job.data.ituner,
-            versionNum: job.data.versionNum,
-            batchAnnCount: job.data.batchAnnCount,
-            annRemains: job.data.annRemains,
-            curSeqCount: job.data.curSeqCount
-        });
-
-        cat_job.save();
-        done(null, 'dewarp_done');
-    }
-
-});
-
-
-queue.process('cat', function (job, done){
+queue.process(cat_job, function (job, done){
 
     if(importSwitch.cat){
 
@@ -152,7 +88,7 @@ queue.process('cat', function (job, done){
 
                 log.info('cat completed: ' + seq.title + ' ' + job.data.channel);
 
-                var encode_HEVC_job = queue.create('encode_HEVC', {
+                var encode_HEVC_job = queue.create(HEVC_job, {
                     sequenceObj: job.data.sequenceObj,
                     channel: job.data.channel,
                     ituner: job.data.ituner,
@@ -164,7 +100,7 @@ queue.process('cat', function (job, done){
 
                 encode_HEVC_job.save();
 
-                done(null, 'cat_done');
+                done(null, cat_job_done);
 
             } else {
                 log.error("cat command failed. stderr: " + stderr);
@@ -172,7 +108,7 @@ queue.process('cat', function (job, done){
         });
 
     } else {
-        var encode_HEVC_job = queue.create('encode_HEVC', {
+        var encode_HEVC_job = queue.create(HEVC_job, {
             sequenceObj: job.data.sequenceObj,
             channel: job.data.channel,
             ituner: job.data.ituner,
@@ -183,13 +119,13 @@ queue.process('cat', function (job, done){
         });
 
         encode_HEVC_job.save();
-        done(null, 'cat_done');
+        done(null, cat_job_done);
     }
 
 });
 
 
-queue.process('encode_HEVC', function (job, done){
+queue.process(HEVC_job, function (job, done){
 
     log.info("Processing encode_HEVC: ", job.data.sequenceObj.title, job.data.channel);
     log.info("Start: " + new Date());
@@ -231,7 +167,7 @@ queue.process('encode_HEVC', function (job, done){
                         desc: ituner
                     });
 
-                    var genPreviewImg = queue.create('genPreviewImg', {
+                    var genPreviewImg = queue.create(genPreviewImg_job, {
                         sequenceObj: seq,
                         batchAnnCount: job.data.batchAnnCount,
                         annRemains: job.data.annRemains,
@@ -242,7 +178,7 @@ queue.process('encode_HEVC', function (job, done){
                 }
 
 
-                done(null, 'encode_HEVC_done');
+                done(null, HEVC_job_done);
 
             } else {
                 log.error("encode_HEVC command failed. stderr: " + stderr);
@@ -257,7 +193,7 @@ queue.process('encode_HEVC', function (job, done){
                 desc: ituner
             });
 
-            var genPreviewImg = queue.create('genPreviewImg', {
+            var genPreviewImg = queue.create(genPreviewImg_job, {
                 sequenceObj: seq,
                 batchAnnCount: job.data.batchAnnCount,
                 annRemains: job.data.annRemains,
@@ -267,13 +203,13 @@ queue.process('encode_HEVC', function (job, done){
             genPreviewImg.save();
         }
 
-        done(null, 'encode_HEVC_done');
+        done(null, HEVC_job_done);
     }
 
 });
 
 
-queue.process('genPreviewImg', function (job, done){
+queue.process(genPreviewImg_job, function (job, done){
 
     log.info("Processing genPreviewImg: ", job.data.sequenceObj.title);
     log.info("Start: " + new Date());
@@ -286,7 +222,7 @@ queue.process('genPreviewImg', function (job, done){
         var outputDir = '/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/preview_img/f_%010d.jpg';
 
         mkdir('/supercam' + getRootPathBySite(seq.file_location) + '/Front_Stereo/R/preview_img/');
-        var cmd = 'ffmpeg -i ' + inputDir + ' -qscale:v 1 -start_number 0 ' + outputDir;
+        var cmd = 'ffmpeg -y -i ' + inputDir + ' -qscale:v 1 -start_number 0 ' + outputDir;
 
         exec(cmd, {async:true}, function (code, stdout, stderr) {
 
@@ -311,7 +247,7 @@ queue.process('genPreviewImg', function (job, done){
                     else {
                         if ( response.statusCode == 200 ) {
                             log.debug('Insert success', body);
-                            done(null, 'genPreviewImg_done');
+                            done(null, genPreviewImg_job_done);
                         }
                         else {
                             log.error('Insert failed', response.statusCode);
@@ -327,7 +263,7 @@ queue.process('genPreviewImg', function (job, done){
                 });
 
                 // genAnnotation.save(); // Todo: uncomment!
-                // done(null, 'genPreviewImg_done');
+                // done(null, genPreviewImg_job_done);
 
 
             } else {
@@ -344,9 +280,9 @@ queue.process('genPreviewImg', function (job, done){
             curSeqCount: job.data.curSeqCount
         });
 
-        genAnnotation.save();
+        // genAnnotation.save();
 
-        done(null, 'genPreviewImg_done');
+        done(null, genPreviewImg_job_done);
     }
 
 });
